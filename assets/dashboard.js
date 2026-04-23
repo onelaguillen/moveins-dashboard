@@ -448,7 +448,7 @@ function rowHtml(r) {
   const mainRow = `
     <tr class="${hasExpansion ? 'expanded' : ''}">
       <td>
-        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.Address || '—')}</a>
+        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.Address || '—')}</a>${(r.IsFastMoveIn === 1 || r.IsFastMoveIn === true) ? ` <span class="fast-moveIn-flag" title="Fast Move-In — wire required" onclick="toggleExpansion(${r.HomeId}, 'payment')">⚡</span>` : ''}
         ${r.LeaseType ? `<div style="margin-top:3px"><span class="lease-type-tag">${escapeHtml(r.LeaseType)}</span></div>` : ''}
         ${r.MoveInSpecialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.MoveInSpecialist)}</div>` : ''}
       </td>

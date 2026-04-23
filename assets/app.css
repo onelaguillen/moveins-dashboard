@@ -31,6 +31,12 @@
   padding: 10px 12px; border-radius: 8px; font-size: 12px;
   margin-bottom: 12px; line-height: 1.45;
 }
+.fast-moveIn-flag {
+  display: inline-block; margin-left: 4px; cursor: pointer;
+  font-size: 13px; line-height: 1;
+  transform: translateY(-1px);
+}
+.fast-moveIn-flag:hover { filter: brightness(1.15); }
 
 .pay-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
