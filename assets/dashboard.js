@@ -352,15 +352,16 @@ function rowHtml(r) {
 
   let expInner = '';
   if (repairsOpen) {
-    const items = parseRepairs(r.UnfinishedGroupDetails || r.AllUnfinishedDetails);
+    const items = parseRepairs(r.AllUnfinishedDetails || r.UnfinishedGroupDetails);
     const listHtml = items.length
-      ? `<ul class="repairs-list">${items.map(it => `
-          <li>${it.id
-              ? `<a href="https://foundation.bln.hm/maintenance/${it.id}" target="_blank" rel="noopener">
-                    <span class="repair-id">#${it.id}</span>${escapeHtml(it.label)} <span style="font-size:10px;color:var(--faint)">↗</span>
-                 </a>`
-              : escapeHtml(it.label)}</li>
-        `).join('')}</ul>`
+      ? `<div class="repairs-grid">${items.map(it => it.id
+          ? `<a class="repair-card" href="https://foundation.bln.hm/maintenance/${it.id}" target="_blank" rel="noopener">
+               <span class="repair-id">#${it.id}</span>
+               <span>${escapeHtml(it.label)}</span>
+               <span class="repair-ext">↗</span>
+             </a>`
+          : `<span class="repair-card">${escapeHtml(it.label)}</span>`
+        ).join('')}</div>`
       : `<div class="faint">${r.UnfinishedImprovementsCount} unfinished improvements</div>`;
     const note = ctx?.repairs_context
       ? `<div class="repairs-note">${escapeHtml(ctx.repairs_context)}</div>` : '';

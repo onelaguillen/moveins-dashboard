@@ -375,28 +375,48 @@ header.app-header {
 .mini-err   { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
 .mini-none  { background: var(--surface2); color: var(--faint); border-color: var(--border); }
 
-/* ── Repairs list inside expansion ── */
-.repairs-list { list-style: none; padding: 0; margin: 0; }
-.repairs-list li {
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--border);
-  font-size: 12px;
-}
-.repairs-list li:last-child { border-bottom: none; }
-.repairs-list a {
-  color: var(--navy);
-  text-decoration: none;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: baseline;
+/* ── Repairs inline cards ── */
+.repairs-grid {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
-.repairs-list a:hover { text-decoration: underline; }
-.repairs-list .repair-id {
+.repair-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--rsm);
+  text-decoration: none;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all .12s;
+  min-width: 0;
+}
+.repair-card:hover {
+  border-color: var(--navy);
+  background: var(--navy-dim);
+  color: var(--navy);
+  transform: translateY(-1px);
+}
+.repair-card .repair-id {
   font-family: 'SF Mono', ui-monospace, Menlo, monospace;
   font-size: 10px;
   font-weight: 700;
   color: var(--faint);
+  background: var(--surface2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.repair-card:hover .repair-id { background: #fff; color: var(--navy); }
+.repair-card .repair-ext {
+  font-size: 10px;
+  color: var(--faint);
+  margin-left: 2px;
 }
 .repairs-note {
   margin-top: 10px;
