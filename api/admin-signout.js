@@ -85,7 +85,10 @@ module.exports = async (req, res) => {
     );
     if (!logoutRes.ok) {
       const text = await logoutRes.text();
-      res.status(502).json({ error: 'Admin signout failed', detail: text });
+      res.status(502).json({
+        error: `Admin signout failed (${logoutRes.status})`,
+        detail: text
+      });
       return;
     }
   } catch (e) {

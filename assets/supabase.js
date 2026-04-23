@@ -161,7 +161,8 @@ async function adminSignOutUser({ userId, email }) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    const msg = [err.error, err.detail].filter(Boolean).join(' — ');
+    throw new Error(msg || `HTTP ${res.status}`);
   }
 
   // Also tell their tab to redirect now (token revoke on Supabase side will
