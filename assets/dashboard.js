@@ -47,7 +47,7 @@ async function loadData() {
     sb.from('homes').select(
       '"HomeId","Address","Region","ResidentName",' +
       '"MoveInSpecialist","Concierge","ImprovementsSpecialist",' +
-      '"LeaseStartOn","LeaseType","CurrentMilestone","MoveInReady","MoveInCompleted",' +
+      '"LeaseStartOn","LeaseExecutedOn","LeaseType","CurrentMilestone","MoveInReady","MoveInCompleted",' +
       '"AdminLink",' +
       '"RentAmount","DepositAmount","DepositType","EnrolledInAutoPay",' +
       '"MoveInPaymentStatus","PaidRent","ReceivedRent","ProcessingReceiveRent",' +
