@@ -81,7 +81,7 @@ let   presenceActivityTimer = null;
 let   presenceStatus    = 'active';
 let   presenceUser      = null;
 
-async function startPresence(session) {
+async function startPresence(session, opts = {}) {
   const user = session?.user;
   if (!user) return;
   presenceUser = {
@@ -98,17 +98,25 @@ async function startPresence(session) {
     config: { presence: { key: user.email } }
   });
 
-  presenceChannel
-    .on('broadcast', { event: 'force-signout' }, ({ payload }) => {
-      if ((payload?.email || '').toLowerCase() === (user.email || '').toLowerCase()) {
-        sb.auth.signOut().finally(() => window.location.replace('/login?error=kicked'));
-      }
-    })
-    .subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await presenceChannel.track(presenceUser);
-      }
-    });
+  // Attach listeners BEFORE subscribe
+  presenceChannel.on('broadcast', { event: 'force-signout' }, ({ payload }) => {
+    if ((payload?.email || '').toLowerCase() === (user.email || '').toLowerCase()) {
+      sb.auth.signOut().finally(() => window.location.replace('/login?error=kicked'));
+    }
+  });
+
+  if (typeof opts.onSync === 'function') {
+    presenceChannel.on('presence', { event: 'sync' },  opts.onSync);
+    presenceChannel.on('presence', { event: 'join' },  opts.onSync);
+    presenceChannel.on('presence', { event: 'leave' }, opts.onSync);
+  }
+
+  presenceChannel.subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      await presenceChannel.track(presenceUser);
+      if (typeof opts.onSync === 'function') opts.onSync();
+    }
+  });
 
   scheduleIdleMark();
   window.addEventListener('beforeunload', () => {

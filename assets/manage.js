@@ -26,8 +26,8 @@ const FLOAT_COLS = new Set([
 
   await mountHeader({ page: 'manage', session });
   startIdleWatcher();
-  startPresence(session);
-  startOnlineUsersPanel(session);
+  initOnlineUsersPanel(session);
+  startPresence(session, { onSync: renderOnlineUsers });
 
   document.getElementById('loadingState').style.display = 'none';
   document.getElementById('pageContent').style.display = 'block';
@@ -38,72 +38,66 @@ const FLOAT_COLS = new Set([
 })();
 
 // ── Online users panel ───────────────────────────────────────────────────────
-function startOnlineUsersPanel(session) {
+let _onlineMyEmail = '';
+function initOnlineUsersPanel(session) {
+  _onlineMyEmail = (session.user.email || '').toLowerCase();
+  // Refresh idle-time labels every 30s
+  setInterval(renderOnlineUsers, 30000);
+}
+
+function renderOnlineUsers() {
   const listEl  = document.getElementById('onlineList');
   const countEl = document.getElementById('onlineCount');
   if (!listEl || !countEl) return;
+  if (!presenceChannel) return;
 
-  const myEmail = (session.user.email || '').toLowerCase();
-  const channel = sb.channel('online-users');
+  const state = presenceChannel.presenceState();
+  const rows = Object.values(state).flat()
+    .map(p => ({
+      id:     p.id    || '',
+      email:  p.email || '',
+      name:   p.name  || p.email || '',
+      avatar: p.avatar || '',
+      page:   p.page   || '/',
+      status: p.status || 'active',
+      since:  p.since  || Date.now()
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  const render = () => {
-    const state = channel.presenceState();
-    const rows = Object.values(state).flat()
-      .map(p => ({
-        id:     p.id    || '',
-        email:  p.email || '',
-        name:   p.name  || p.email || '',
-        avatar: p.avatar || '',
-        page:   p.page   || '/',
-        status: p.status || 'active',
-        since:  p.since  || Date.now()
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+  countEl.textContent = rows.length;
 
-    countEl.textContent = rows.length;
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="online-empty">No one else is online.</div>`;
+    return;
+  }
 
-    if (!rows.length) {
-      listEl.innerHTML = `<div class="online-empty">No one else is online.</div>`;
-      return;
-    }
+  listEl.innerHTML = rows.map(u => {
+    const isMe  = u.email.toLowerCase() === _onlineMyEmail;
+    const pageLabel =
+      u.page === '/'             ? 'Dashboard' :
+      u.page.includes('manage')  ? 'Manage'    :
+      u.page.includes('ready')   ? 'Ready'     : u.page;
+    const initials = (u.name || '?').split(/\s+/).map(s=>s[0]).slice(0,2).join('').toUpperCase();
+    const dotCls   = u.status === 'idle' ? 'dot-idle' : 'dot-active';
+    const sinceMin = Math.max(0, Math.floor((Date.now() - u.since) / 60000));
+    const statusLabel = u.status === 'idle' ? `idle ${sinceMin}m` : 'active';
 
-    listEl.innerHTML = rows.map(u => {
-      const isMe  = u.email.toLowerCase() === myEmail;
-      const pageLabel =
-        u.page === '/'        ? 'Dashboard' :
-        u.page.includes('manage') ? 'Manage'   :
-        u.page.includes('ready')  ? 'Ready'    : u.page;
-      const initials = (u.name || '?').split(/\s+/).map(s=>s[0]).slice(0,2).join('').toUpperCase();
-      const dotCls   = u.status === 'idle' ? 'dot-idle' : 'dot-active';
-      const sinceMin = Math.max(0, Math.floor((Date.now() - u.since) / 60000));
-      const statusLabel = u.status === 'idle' ? `idle ${sinceMin}m` : 'active';
-
-      return `
-        <div class="online-row">
-          <div class="online-avatar">
-            ${u.avatar ? `<img src="${escAttr(u.avatar)}" alt="">` : escHtml(initials)}
-          </div>
-          <div>
-            <span class="online-name">${escHtml(u.name)}${isMe ? ' (you)' : ''}</span>
-            <span class="online-email">${escHtml(u.email)}</span>
-          </div>
-          <span class="online-page">${escHtml(pageLabel)}</span>
-          <span class="online-status"><i class="dot ${dotCls}"></i>${escHtml(statusLabel)}</span>
-          <button class="btn-kick" ${isMe ? 'disabled title="You"' : `onclick="kickUser('${escAttr(u.id||'')}','${escAttr(u.email)}','${escAttr(u.name)}')"`}>
-            Sign out
-          </button>
-        </div>`;
-    }).join('');
-  };
-
-  channel
-    .on('presence', { event: 'sync' },  render)
-    .on('presence', { event: 'join' },  render)
-    .on('presence', { event: 'leave' }, render)
-    .subscribe();
-
-  // Refresh idle-time labels every 30s
-  setInterval(render, 30000);
+    return `
+      <div class="online-row">
+        <div class="online-avatar">
+          ${u.avatar ? `<img src="${escAttr(u.avatar)}" alt="">` : escHtml(initials)}
+        </div>
+        <div>
+          <span class="online-name">${escHtml(u.name)}${isMe ? ' (you)' : ''}</span>
+          <span class="online-email">${escHtml(u.email)}</span>
+        </div>
+        <span class="online-page">${escHtml(pageLabel)}</span>
+        <span class="online-status"><i class="dot ${dotCls}"></i>${escHtml(statusLabel)}</span>
+        <button class="btn-kick" ${isMe ? 'disabled title="You"' : `onclick="kickUser('${escAttr(u.id||'')}','${escAttr(u.email)}','${escAttr(u.name)}')"`}>
+          Sign out
+        </button>
+      </div>`;
+  }).join('');
 }
 
 async function kickUser(userId, email, name) {
