@@ -76,15 +76,11 @@ function wireFilters() {
     filterState.q = e.target.value;
     persistFilters(); applyFilters();
   });
-  document.getElementById('fFrom').addEventListener('change', e => {
-    filterState.dateFrom = e.target.value;
-    filterState.dateChip = '';
-    updateDateChipsUI();
-    persistFilters(); applyFilters();
-  });
-  document.getElementById('fTo').addEventListener('change', e => {
-    filterState.dateTo = e.target.value;
-    filterState.dateChip = '';
+  initDateRangePicker();
+  document.getElementById('fDateClear').addEventListener('click', () => {
+    filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
+    if (window._datePicker) window._datePicker.clear();
+    updateDateClearUI();
     updateDateChipsUI();
     persistFilters(); applyFilters();
   });
@@ -95,6 +91,45 @@ function wireFilters() {
     filterState.spec = e.target.value; persistFilters(); applyFilters();
   });
   document.getElementById('fClear').addEventListener('click', clearFilters);
+}
+
+function initDateRangePicker() {
+  const input = document.getElementById('fDateRange');
+  if (!input || !window.flatpickr) return;
+  const initial = [];
+  if (filterState.dateFrom) initial.push(filterState.dateFrom);
+  if (filterState.dateTo && filterState.dateTo !== filterState.dateFrom) initial.push(filterState.dateTo);
+
+  window._datePicker = flatpickr(input, {
+    mode: 'range',
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'M j, Y',
+    defaultDate: initial,
+    onChange(selectedDates) {
+      const fmt = d => d.toISOString().slice(0, 10);
+      if (selectedDates.length === 0) {
+        filterState.dateFrom = ''; filterState.dateTo = '';
+      } else if (selectedDates.length === 1) {
+        filterState.dateFrom = fmt(selectedDates[0]);
+        filterState.dateTo   = fmt(selectedDates[0]);
+      } else {
+        filterState.dateFrom = fmt(selectedDates[0]);
+        filterState.dateTo   = fmt(selectedDates[selectedDates.length - 1]);
+      }
+      filterState.dateChip = '';
+      updateDateClearUI();
+      updateDateChipsUI();
+      persistFilters(); applyFilters();
+    }
+  });
+  updateDateClearUI();
+}
+
+function updateDateClearUI() {
+  const btn = document.getElementById('fDateClear');
+  if (!btn) return;
+  btn.style.display = (filterState.dateFrom || filterState.dateTo) ? '' : 'none';
 }
 
 function populateSelectOptions() {
@@ -157,11 +192,11 @@ function clearFilters() {
   filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
   filterState.region = ''; filterState.spec = '';
   document.getElementById('fSearch').value = '';
-  document.getElementById('fFrom').value = '';
-  document.getElementById('fTo').value   = '';
+  if (window._datePicker) window._datePicker.clear();
   document.getElementById('fRegion').value = '';
   document.getElementById('fSpecialist').value = '';
   updateMetricCardsUI();
+  updateDateClearUI();
   updateDateChipsUI();
   persistFilters();
   applyFilters();
@@ -182,8 +217,6 @@ function restoreFilters() {
     });
     if (s.pageSize) pageSize = parseInt(s.pageSize, 10) || 20;
     document.getElementById('fSearch').value = filterState.q;
-    document.getElementById('fFrom').value   = filterState.dateFrom;
-    document.getElementById('fTo').value     = filterState.dateTo;
     const ps = document.getElementById('pageSizeSelect');
     if (ps) ps.value = String(pageSize);
   } catch {}
@@ -262,8 +295,18 @@ function setDateChip(chip) {
       filterState.dateFrom = fmt(today); filterState.dateTo = fmt(addDays(today, 30));
     }
   }
-  document.getElementById('fFrom').value = filterState.dateFrom;
-  document.getElementById('fTo').value   = filterState.dateTo;
+  if (window._datePicker) {
+    if (filterState.dateFrom && filterState.dateTo) {
+      window._datePicker.setDate([filterState.dateFrom, filterState.dateTo], false);
+    } else if (filterState.dateFrom) {
+      window._datePicker.setDate([filterState.dateFrom], false);
+    } else if (filterState.dateTo) {
+      window._datePicker.setDate([filterState.dateTo], false);
+    } else {
+      window._datePicker.clear();
+    }
+  }
+  updateDateClearUI();
   updateDateChipsUI();
   persistFilters();
   applyFilters();

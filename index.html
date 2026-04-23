@@ -7,6 +7,7 @@
 <link rel="icon" href="https://belonghome.com/favicon.ico">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
 
@@ -36,10 +37,11 @@
       </div>
 
       <div class="date-group">
-        <span class="date-label">From</span>
-        <input type="date" class="date-input" id="fFrom">
-        <span class="date-sep">—</span>
-        <input type="date" class="date-input" id="fTo">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        <input type="text" class="date-input date-range" id="fDateRange" placeholder="Pick date or range…" readonly>
+        <button type="button" class="date-clear" id="fDateClear" title="Clear dates" aria-label="Clear dates" style="display:none">×</button>
       </div>
 
       <div style="display:flex;gap:6px">
@@ -95,6 +97,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/assets/supabase.js"></script>
 <script src="/assets/nav.js"></script>
 <script src="/assets/dashboard.js"></script>

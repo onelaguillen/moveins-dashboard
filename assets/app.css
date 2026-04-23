@@ -328,7 +328,15 @@ header.app-header {
   color: var(--text);
 }
 .date-input:focus { border-color: var(--navy); background: var(--surface); }
+.date-input.date-range { min-width: 180px; cursor: pointer; }
 .date-sep { color: var(--faint); }
+.date-clear {
+  border: 1px solid var(--border); background: var(--surface2);
+  border-radius: 50%; width: 18px; height: 18px; padding: 0;
+  font-size: 12px; line-height: 1; color: var(--muted);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.date-clear:hover { background: var(--surface); color: var(--text); }
 
 .chip-btn {
   font-family: 'Montserrat', sans-serif;
