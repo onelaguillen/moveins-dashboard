@@ -6,169 +6,51 @@
 <title>Manage — Belong Dashboard</title>
 <link rel="icon" href="https://belonghome.com/favicon.ico">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="/js/auth.js"></script>
-<style>
-:root {
-  --bg: #F4F7FA;
-  --surface: #FFFFFF;
-  --surface2: #F0F4F8;
-  --surface3: #E8EDF2;
-  --border: #E2E8F0;
-  --border2: #CBD5E0;
-  --text: #1A2B3C;
-  --muted: #5A6B7A;
-  --faint: #94A3B8;
-  --navy: #325E77;
-  --navy-dim: rgba(50,94,119,0.08);
-  --green: #1DB87A;
-  --green-dim: rgba(62,228,169,0.12);
-  --green-border: rgba(30,184,122,0.25);
-  --red: #DC2626;
-  --red-dim: rgba(220,38,38,0.08);
-  --red-border: rgba(220,38,38,0.20);
-  --r: 10px;
-  --rsm: 6px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Montserrat', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; }
-
-/* Header */
-header { display: flex; align-items: center; justify-content: space-between; padding: 0 28px; height: 56px; border-bottom: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); position: sticky; top: 0; z-index: 50; }
-.logo { display: flex; align-items: center; gap: 10px; }
-.logo-sub { font-size: 12px; font-weight: 600; color: var(--navy); background: var(--navy-dim); border: 1px solid rgba(50,94,119,0.2); border-radius: 4px; padding: 2px 8px; }
-.header-right { display: flex; align-items: center; gap: 10px; }
-.user-name { font-size: 11px; font-weight: 600; color: var(--muted); }
-.avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; display: none; border: 2px solid var(--border); }
-.btn { font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; border-radius: var(--rsm); padding: 7px 14px; cursor: pointer; transition: all .15s; border: none; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.btn-ghost { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
-.btn-ghost:hover { background: var(--surface3); color: var(--text); }
-.btn-navy { background: var(--navy); color: #fff; }
-.btn-navy:hover { background: #264d61; }
-.btn-red { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
-.btn-red:hover { background: var(--red); color: #fff; }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* Page */
-.page { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
-
-/* Upload zone */
-.upload-section { margin-bottom: 32px; }
-.section-title { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
-.drop-zone { border: 2px dashed var(--border2); border-radius: var(--r); padding: 40px 24px; text-align: center; cursor: pointer; transition: all .2s; background: var(--surface); position: relative; }
-.drop-zone:hover, .drop-zone.drag-over { border-color: var(--navy); background: var(--navy-dim); }
-.drop-icon { font-size: 28px; margin-bottom: 10px; }
-.drop-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.drop-sub { font-size: 11px; color: var(--faint); }
-.drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.upload-progress { margin-top: 14px; display: none; }
-.progress-bar-bg { height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
-.progress-bar-fill { height: 100%; background: var(--green); border-radius: 2px; width: 0%; transition: width .3s; }
-.progress-label { font-size: 10px; font-weight: 600; color: var(--muted); text-align: center; }
-
-/* Homes table */
-.homes-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
-.delete-bar { display: none; align-items: center; justify-content: space-between; padding: 10px 20px; background: var(--red-dim); border-bottom: 1px solid var(--red-border); }
-.delete-bar.show { display: flex; }
-.delete-bar-text { font-size: 12px; font-weight: 600; color: var(--red); }
-.table-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
-.table-count { font-size: 12px; font-weight: 600; color: var(--text); }
-.table-count span { color: var(--faint); font-weight: 400; }
-.page-size-select { font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rsm); padding: 5px 10px; cursor: pointer; outline: none; }
-.page-size-select:focus { border-color: var(--navy); }
-
-table { width: 100%; border-collapse: collapse; }
-thead { background: var(--surface2); }
-th { padding: 9px 14px; text-align: left; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); border-bottom: 1px solid var(--border); white-space: nowrap; }
-td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text); vertical-align: middle; }
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: var(--surface2); }
-tr.selected td { background: rgba(220,38,38,0.04); }
-.cb { width: 15px; height: 15px; cursor: pointer; accent-color: var(--navy); }
-.home-address { font-weight: 600; }
-.admin-link { font-size: 10px; color: var(--navy); text-decoration: none; font-weight: 600; }
-.admin-link:hover { text-decoration: underline; }
-
-/* Empty */
-.empty-state { padding: 60px 20px; text-align: center; }
-.empty-icon { font-size: 32px; margin-bottom: 12px; }
-.empty-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.empty-sub { font-size: 11px; color: var(--faint); }
-
-/* Pagination */
-.pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
-.page-info { font-size: 11px; color: var(--faint); font-weight: 500; }
-.page-btns { display: flex; gap: 4px; }
-.page-btn { font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rsm); padding: 5px 10px; cursor: pointer; transition: all .12s; }
-.page-btn:hover:not(:disabled) { border-color: var(--navy); color: var(--navy); }
-.page-btn.active { background: var(--navy); border-color: var(--navy); color: #fff; }
-.page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-
-/* Skeleton */
-.skel { height: 12px; background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 4px; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-/* Modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; }
-.modal-overlay.show { display: flex; }
-.modal { background: var(--surface); border-radius: var(--r); padding: 28px; max-width: 400px; width: 90%; box-shadow: var(--shadow-md); }
-.modal-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-.modal-body { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
-.modal-body strong { color: var(--red); }
-.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
-/* Toast */
-.toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: #fff; font-size: 12px; font-weight: 600; border-radius: var(--rsm); padding: 10px 18px; box-shadow: var(--shadow-md); z-index: 999; opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; }
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast.error { background: var(--red); }
-.toast.success { background: var(--green); }
-</style>
+<link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
 
-<div id="loadingState" style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Montserrat',sans-serif;font-size:13px;color:#94A3B8;font-weight:500;">
-  Checking access…
-</div>
+<div id="loadingState" class="loading-screen">Checking access…</div>
 
 <div id="pageContent" style="display:none">
-  <header>
-    <div class="logo">
-      <svg width="24" height="24" viewBox="0 0 40 40" fill="none"><path d="M20 4L4 14v22h32V14L20 4z" fill="#325E77"/><path d="M14 36V24h12v12" fill="#3EE4A9"/></svg>
-      <span style="font-size:13px;font-weight:700;color:#1A2B3C">Belong</span>
-      <span style="color:#E2E8F0;margin:0 4px">/</span>
-      <span class="logo-sub">Manage</span>
-    </div>
-    <div class="header-right">
-      <img class="avatar" id="userAvatar" src="" alt="">
-      <span class="user-name" id="userName"></span>
-      <button class="btn btn-ghost" onclick="signOut()">Sign out</button>
-      <a href="/" class="btn btn-navy">← Dashboard</a>
-    </div>
-  </header>
+  <div id="appHeader"></div>
 
-  <div class="page">
+  <div class="page-narrow">
 
-    <!-- Upload -->
-    <div class="upload-section">
-      <div class="section-title">Upload BigQuery Export</div>
-      <div class="drop-zone" id="dropZone">
-        <input type="file" accept=".csv" id="csvInput" onchange="handleFile(this.files[0])">
+    <!-- BigQuery CSV upload -->
+    <div style="margin-bottom:28px">
+      <div class="section-title">1. Upload BigQuery Export (CSV)</div>
+      <div class="drop-zone" id="csvDropZone">
+        <input type="file" accept=".csv" onchange="handleCsv(this.files[0])">
         <div class="drop-icon">📂</div>
         <div class="drop-title">Drop your CSV here or click to browse</div>
-        <div class="drop-sub">BigQuery export · upserts by HomeId · existing homes are updated, new ones added</div>
+        <div class="drop-sub">Source of truth · upserts by HomeId · existing homes updated, new ones added</div>
       </div>
-      <div class="upload-progress" id="uploadProgress">
-        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
-        <div class="progress-label" id="progressLabel">Uploading…</div>
+      <div class="upload-progress" id="csvProgress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="csvProgressFill"></div></div>
+        <div class="progress-label" id="csvProgressLabel">Uploading…</div>
       </div>
     </div>
 
-    <!-- Table -->
-    <div class="homes-section">
-      <div class="delete-bar" id="deleteBar">
-        <span class="delete-bar-text" id="deleteBarText">0 homes selected</span>
+    <!-- Claude repair-context JSON upload -->
+    <div style="margin-bottom:32px">
+      <div class="section-title">2. Upload Repair Context (JSON)</div>
+      <div class="drop-zone" id="jsonDropZone">
+        <input type="file" accept=".json,application/json" onchange="handleJson(this.files[0])">
+        <div class="drop-icon">🔧</div>
+        <div class="drop-title">Drop Claude's analysis JSON here</div>
+        <div class="drop-sub">Upserts by home_id · matches foundation_url · unknown homes are skipped</div>
+      </div>
+      <div class="upload-progress" id="jsonProgress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="jsonProgressFill"></div></div>
+        <div class="progress-label" id="jsonProgressLabel">Uploading…</div>
+      </div>
+    </div>
+
+    <!-- Homes table -->
+    <div class="card">
+      <div class="delete-bar" id="deleteBar" style="display:none;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--red-dim);border-bottom:1px solid var(--red-border)">
+        <span id="deleteBarText" style="font-size:12px;font-weight:600;color:var(--red)">0 homes selected</span>
         <button class="btn btn-red" onclick="confirmDelete()">Delete selected</button>
       </div>
       <div class="table-header">
@@ -185,18 +67,16 @@ tr.selected td { background: rgba(220,38,38,0.04); }
           <thead>
             <tr>
               <th style="width:40px"><input type="checkbox" class="cb" id="selectAll" onchange="toggleSelectAll()"></th>
+              <th style="width:90px">ID</th>
               <th>Address</th>
-              <th>Region</th>
-              <th>Move-In Specialist</th>
+              <th>Specialist</th>
               <th>Lease Start</th>
               <th>Milestone</th>
-              <th></th>
             </tr>
           </thead>
           <tbody id="homesBody">
-            <tr><td></td><td><div class="skel" style="width:240px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:120px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:100px"></div></td><td></td></tr>
-            <tr><td></td><td><div class="skel" style="width:200px"></div></td><td><div class="skel" style="width:60px"></div></td><td><div class="skel" style="width:140px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:90px"></div></td><td></td></tr>
-            <tr><td></td><td><div class="skel" style="width:260px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:110px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:110px"></div></td><td></td></tr>
+            <tr><td></td><td><div class="skel" style="width:60px"></div></td><td><div class="skel" style="width:240px"></div></td><td><div class="skel" style="width:120px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:100px"></div></td></tr>
+            <tr><td></td><td><div class="skel" style="width:60px"></div></td><td><div class="skel" style="width:200px"></div></td><td><div class="skel" style="width:140px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:90px"></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -221,274 +101,14 @@ tr.selected td { background: rgba(220,38,38,0.04); }
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<style>
+/* Make delete-bar visible when .show is applied (inline display:none baseline above) */
+.delete-bar.show { display: flex !important; }
+</style>
 
-<script>
-let allHomes = [];
-let currentPage = 1;
-let pageSize = 20;
-let selectedIds = new Set();
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-(async () => {
-  const session = await requireAuth(true);
-  if (!session) return;
-
-  const user = session.user;
-  const nameEl = document.getElementById('userName');
-  if (nameEl) nameEl.textContent = user.user_metadata?.full_name || user.email;
-  const avatarEl = document.getElementById('userAvatar');
-  if (avatarEl && user.user_metadata?.avatar_url) {
-    avatarEl.src = user.user_metadata.avatar_url;
-    avatarEl.style.display = 'block';
-  }
-
-  document.getElementById('loadingState').style.display = 'none';
-  document.getElementById('pageContent').style.display = 'block';
-
-  setupDragDrop();
-  await loadHomes();
-})();
-
-// ── Load ──────────────────────────────────────────────────────────────────────
-async function loadHomes() {
-  const { data, error } = await sb
-    .from('homes')
-    .select('"HomeId","Address","Region","MoveInSpecialist","LeaseStartOn","CurrentMilestone","AdminLink"')
-    .order('"LeaseStartOn"', { ascending: true });
-
-  if (error) { showToast('Failed to load homes', 'error'); return; }
-  allHomes = data || [];
-  selectedIds.clear();
-  currentPage = 1;
-  renderTable();
-}
-
-// ── Render ────────────────────────────────────────────────────────────────────
-function renderTable() {
-  const total = allHomes.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  currentPage = Math.min(currentPage, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const end = Math.min(start + pageSize, total);
-  const page = allHomes.slice(start, end);
-
-  // Count
-  document.getElementById('tableCount').innerHTML =
-    `<strong>${total}</strong> <span>home${total !== 1 ? 's' : ''} in Supabase</span>`;
-
-  // Delete bar
-  const selCount = selectedIds.size;
-  const bar = document.getElementById('deleteBar');
-  bar.classList.toggle('show', selCount > 0);
-  if (selCount > 0) document.getElementById('deleteBarText').textContent =
-    `${selCount} home${selCount !== 1 ? 's' : ''} selected`;
-
-  // Select all state
-  const allChecked = page.length > 0 && page.every(h => selectedIds.has(h.HomeId));
-  const someChecked = page.some(h => selectedIds.has(h.HomeId));
-  const selectAll = document.getElementById('selectAll');
-  selectAll.checked = allChecked;
-  selectAll.indeterminate = !allChecked && someChecked;
-
-  // Rows
-  const tbody = document.getElementById('homesBody');
-  if (!total) {
-    tbody.innerHTML = `<tr><td colspan="7">
-      <div class="empty-state">
-        <div class="empty-icon">🏠</div>
-        <div class="empty-title">No homes yet</div>
-        <div class="empty-sub">Upload a BigQuery CSV export to populate the dashboard</div>
-      </div>
-    </td></tr>`;
-  } else {
-    tbody.innerHTML = page.map(h => {
-      const leaseDate = h.LeaseStartOn
-        ? new Date(h.LeaseStartOn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        : '—';
-      const milestone = h.CurrentMilestone
-        ? h.CurrentMilestone.replace(/([A-Z])/g, ' $1').trim()
-        : '—';
-      return `<tr class="${selectedIds.has(h.HomeId) ? 'selected' : ''}">
-        <td><input type="checkbox" class="cb" ${selectedIds.has(h.HomeId) ? 'checked' : ''} onchange="toggleSelect(${h.HomeId})"></td>
-        <td><span class="home-address">${h.Address || '—'}</span></td>
-        <td style="font-size:11px;color:var(--muted)">${h.Region || '—'}</td>
-        <td style="font-size:11px;color:var(--muted)">${h.MoveInSpecialist || '—'}</td>
-        <td style="font-size:11px;color:var(--muted);white-space:nowrap">${leaseDate}</td>
-        <td style="font-size:11px;color:var(--muted)">${milestone}</td>
-        <td>${h.AdminLink ? `<a href="${h.AdminLink}" target="_blank" class="admin-link">Open ↗</a>` : ''}</td>
-      </tr>`;
-    }).join('');
-  }
-
-  // Pagination
-  const pag = document.getElementById('pagination');
-  if (total === 0) { pag.style.display = 'none'; return; }
-  pag.style.display = 'flex';
-  document.getElementById('pageInfo').textContent = `Showing ${start + 1}–${end} of ${total}`;
-
-  let html = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>←</button>`;
-  const range = [];
-  for (let i = 1; i <= totalPages; i++) {
-    if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) range.push(i);
-    else if (range[range.length - 1] !== '…') range.push('…');
-  }
-  range.forEach(p => {
-    if (p === '…') html += `<span class="page-btn" style="cursor:default;pointer-events:none">…</span>`;
-    else html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`;
-  });
-  html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>`;
-  document.getElementById('pageBtns').innerHTML = html;
-}
-
-// ── Selection ─────────────────────────────────────────────────────────────────
-function toggleSelect(homeId) {
-  selectedIds.has(homeId) ? selectedIds.delete(homeId) : selectedIds.add(homeId);
-  renderTable();
-}
-
-function toggleSelectAll() {
-  const start = (currentPage - 1) * pageSize;
-  const page = allHomes.slice(start, Math.min(start + pageSize, allHomes.length));
-  const allChecked = page.every(h => selectedIds.has(h.HomeId));
-  page.forEach(h => allChecked ? selectedIds.delete(h.HomeId) : selectedIds.add(h.HomeId));
-  renderTable();
-}
-
-function goPage(p) {
-  const totalPages = Math.ceil(allHomes.length / pageSize);
-  if (p < 1 || p > totalPages) return;
-  currentPage = p;
-  renderTable();
-}
-
-function changePageSize() {
-  pageSize = parseInt(document.getElementById('pageSizeSelect').value);
-  currentPage = 1;
-  renderTable();
-}
-
-// ── Delete ────────────────────────────────────────────────────────────────────
-function confirmDelete() {
-  if (!selectedIds.size) return;
-  document.getElementById('modalBody').innerHTML =
-    `You're about to permanently delete <strong>${selectedIds.size} home${selectedIds.size !== 1 ? 's' : ''}</strong> and all their associated repair data.<br><br>This cannot be undone.`;
-  document.getElementById('modalOverlay').classList.add('show');
-}
-
-function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('show');
-}
-
-async function executeDelete() {
-  closeModal();
-  const ids = [...selectedIds];
-  const { error } = await sb.from('homes').delete().in('"HomeId"', ids);
-  if (error) { showToast('Delete failed: ' + error.message, 'error'); return; }
-  showToast(`✅ ${ids.length} home${ids.length !== 1 ? 's' : ''} deleted`, 'success');
-  await loadHomes();
-}
-
-// ── CSV Upload ────────────────────────────────────────────────────────────────
-function setupDragDrop() {
-  const zone = document.getElementById('dropZone');
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  });
-}
-
-async function handleFile(file) {
-  if (!file?.name.endsWith('.csv')) { showToast('Please upload a CSV file', 'error'); return; }
-
-  const text = await file.text();
-  const rows = parseCSV(text);
-  if (!rows.length) { showToast('No data found in CSV', 'error'); return; }
-
-  const progress = document.getElementById('uploadProgress');
-  const fill = document.getElementById('progressFill');
-  const label = document.getElementById('progressLabel');
-  progress.style.display = 'block';
-  fill.style.width = '0%';
-
-  const BATCH = 100;
-  let uploaded = 0;
-
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH);
-    const { error } = await sb.from('homes').upsert(batch, { onConflict: '"HomeId"' });
-    if (error) { showToast('Upload error: ' + error.message, 'error'); break; }
-    uploaded += batch.length;
-    const pct = Math.round((uploaded / rows.length) * 100);
-    fill.style.width = pct + '%';
-    label.textContent = `Uploading… ${uploaded} / ${rows.length} homes`;
-  }
-
-  fill.style.width = '100%';
-  label.textContent = `✅ ${uploaded} homes synced`;
-  setTimeout(() => { progress.style.display = 'none'; fill.style.width = '0%'; }, 3000);
-  showToast(`✅ ${uploaded} homes uploaded`, 'success');
-  await loadHomes();
-}
-
-// Integer columns for type coercion
-const INT_COLS = new Set(['HomeId','LeaseId','ResidentId','MoveInSpecialistId','ConciergeId',
-  'ImprovementsSpecialistId','HasHoa','HoaIsNotified','HadQAInspection','QAInspectionCount',
-  'UnfinishedImprovements','UnfinishedImprovementsCount','IsSatisfied','CSATResponseCount',
-  'NewProServices','NewProServicesCount','BalancesUnpaid','DepositUnpaid','RentUnpaid',
-  'HasDeposit','HasRent','IsPerfectMoveIn','IsPerfectMoveInStrict','EnrolledInAutoPay']);
-
-const FLOAT_COLS = new Set(['DepositAmount','RentAmount','PaidRent','ReceivedRent',
-  'ProcessingReceiveRent','AvgRating']);
-
-function parseCSV(text) {
-  const lines = text.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
-  const headers = parseCSVLine(lines[0]);
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    if (values.length < 2) continue;
-    const row = {};
-    headers.forEach((h, idx) => {
-      const val = values[idx] ?? '';
-      if (val === '') row[h] = null;
-      else if (INT_COLS.has(h)) row[h] = parseInt(val, 10);
-      else if (FLOAT_COLS.has(h)) row[h] = parseFloat(val);
-      else row[h] = val;
-    });
-    row['last_synced_at'] = new Date().toISOString();
-    rows.push(row);
-  }
-  return rows;
-}
-
-function parseCSVLine(line) {
-  const result = [];
-  let cur = '', inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
-      else inQuotes = !inQuotes;
-    } else if (ch === ',' && !inQuotes) { result.push(cur.trim()); cur = ''; }
-    else cur += ch;
-  }
-  result.push(cur.trim());
-  return result;
-}
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
-function showToast(msg, type = '') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = 'toast show' + (type ? ' ' + type : '');
-  setTimeout(() => el.className = 'toast', 3500);
-}
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/assets/supabase.js"></script>
+<script src="/assets/nav.js"></script>
+<script src="/assets/manage.js"></script>
 </body>
 </html>

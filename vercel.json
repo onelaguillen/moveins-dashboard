@@ -3,6 +3,7 @@
     { "source": "/auth/callback", "destination": "/auth/callback.html" },
     { "source": "/login",         "destination": "/login.html" },
     { "source": "/manage",        "destination": "/manage.html" },
+    { "source": "/ready",         "destination": "/ready.html" },
     { "source": "/",              "destination": "/index.html" }
   ]
 }

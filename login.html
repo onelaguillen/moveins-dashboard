@@ -328,7 +328,7 @@ body { font-family: 'Montserrat', sans-serif; background: #F4F7FA; min-height: 1
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="/js/auth.js"></script>
+<script src="/assets/supabase.js"></script>
 <script>
 (async () => {
   // If already signed in, redirect to dashboard
@@ -340,27 +340,18 @@ body { font-family: 'Montserrat', sans-serif; background: #F4F7FA; min-height: 1
 
   // Check for error param
   const params = new URLSearchParams(window.location.search);
-  if (params.get('error') === 'domain') {
+  const err = params.get('error');
+  if (err) {
     const banner = document.getElementById('errorBanner');
     banner.classList.add('show');
-    document.getElementById('errorText').textContent =
-      'Access restricted to @belonghome.com accounts. Try signing in with your Belong email.';
+    const msg = err === 'idle'
+      ? 'You were signed out after 2 hours of inactivity. Please sign in again.'
+      : 'Access restricted to @belonghome.com accounts. Try signing in with your Belong email.';
+    document.getElementById('errorText').textContent = msg;
   }
 
-  // Load stats for the right panel (unauthenticated read — public data)
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/belong_files?active=eq.true&order=generated_at.desc&limit=1`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
-    );
-    const files = await res.json();
-    if (files.length) {
-      const homes = files[0].homes || [];
-      document.getElementById('statHomes').textContent  = homes.length;
-      document.getElementById('statReady').textContent  = homes.filter(h => h.ready_for_tami && !h.signed_off).length;
-      document.getElementById('statSigned').textContent = homes.filter(h => h.signed_off).length;
-    }
-  } catch (e) { /* stats are decorative, fail silently */ }
+  // Stats panel is decorative — since the DB now requires auth, just blank the numbers.
+  // (The right-side panel shows "—" until signed-in users reach the dashboard.)
 })();
 
 async function handleSignIn() {
