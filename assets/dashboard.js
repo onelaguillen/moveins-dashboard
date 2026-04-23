@@ -54,6 +54,19 @@ const COLUMN_FILTERS = {
       { value: 'postponed',    label: 'Postponed',    test: r => r._status === 'postponed' },
       { value: 'signed_off',   label: 'Signed Off',   test: r => r._status === 'signed_off' }
     ]
+  },
+  HQS: {
+    label: 'HQS',
+    // Options generated dynamically from data (unique ImprovementsSpecialist values)
+    dynamic: true,
+    build: rows => {
+      const names = [...new Set(rows.map(r => r.ImprovementsSpecialist).filter(Boolean))].sort();
+      const opts = names.map(n => ({
+        value: n, label: n, test: r => r.ImprovementsSpecialist === n
+      }));
+      opts.unshift({ value: '__none__', label: '— Unassigned —', test: r => !r.ImprovementsSpecialist });
+      return opts;
+    }
   }
 };
 
@@ -243,7 +256,8 @@ function applyFilters() {
       if (!values || !values.length) continue;
       const cfg = COLUMN_FILTERS[key];
       if (!cfg) continue;
-      const opts = cfg.options.filter(o => values.includes(o.value));
+      const allOpts = cfg.dynamic ? cfg.build(allRows || []) : cfg.options;
+      const opts = allOpts.filter(o => values.includes(o.value));
       if (!opts.some(o => o.test(r))) return false;
     }
 
@@ -492,7 +506,9 @@ function toggleFastMoveInFilter() {
 function renderSortIndicators() {
   document.querySelectorAll('.sort-ind').forEach(el => {
     const k = el.getAttribute('data-sort-key');
-    el.textContent = (sortState.key === k) ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    const active = sortState.key === k;
+    el.textContent = active ? (sortState.dir === 'asc' ? '▲' : '▼') : '⇅';
+    el.classList.toggle('active', active);
   });
   // Refresh funnel-icon active state
   document.querySelectorAll('.col-filter-btn').forEach(btn => {
@@ -507,6 +523,7 @@ function toggleColumnFilter(event, key) {
   event.stopPropagation();
   const cfg = COLUMN_FILTERS[key];
   if (!cfg) return;
+  const options = cfg.dynamic ? cfg.build(allRows || []) : cfg.options;
   const existing = document.getElementById('colFilterPop');
   if (existing && existing.getAttribute('data-col') === key) { existing.remove(); return; }
   if (existing) existing.remove();
@@ -521,7 +538,7 @@ function toggleColumnFilter(event, key) {
   pop.innerHTML = `
     <div class="cfp-title">Filter ${escapeHtml(cfg.label)}</div>
     <div class="cfp-options">
-      ${cfg.options.map(o => `
+      ${options.map(o => `
         <label class="cfp-opt">
           <input type="checkbox" value="${escapeAttr(o.value)}" ${current.has(o.value) ? 'checked' : ''}>
           <span>${escapeHtml(o.label)}</span>
