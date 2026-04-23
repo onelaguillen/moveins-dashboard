@@ -504,51 +504,67 @@ function toggleFastMoveInFilter() {
 
 // ── Render table ─────────────────────────────────────────────────────────────
 function renderSortIndicators() {
-  document.querySelectorAll('.sort-ind').forEach(el => {
-    const k = el.getAttribute('data-sort-key');
-    const active = sortState.key === k;
-    el.textContent = active ? (sortState.dir === 'asc' ? '▲' : '▼') : '⇅';
-    el.classList.toggle('active', active);
-  });
-  // Refresh funnel-icon active state
-  document.querySelectorAll('.col-filter-btn').forEach(btn => {
+  // Highlight column-menu button when sort OR filter is active on that column
+  document.querySelectorAll('.col-menu-btn').forEach(btn => {
     const k = btn.getAttribute('data-col');
-    const active = (filterState.columnFilters?.[k] || []).length > 0;
-    btn.classList.toggle('active', active);
+    const sortActive   = sortState.key === k;
+    const filterActive = (filterState.columnFilters?.[k] || []).length > 0;
+    btn.classList.toggle('sort-active',   sortActive && !filterActive);
+    btn.classList.toggle('filter-active', filterActive);
+    btn.setAttribute('data-sort-dir', sortActive ? sortState.dir : '');
   });
 }
 
-// ── Column filter popover ───────────────────────────────────────────────────
-function toggleColumnFilter(event, key) {
+// ── Unified column menu (sort + filter in one popover) ──────────────────────
+function toggleColumnMenu(event, key) {
   event.stopPropagation();
-  const cfg = COLUMN_FILTERS[key];
-  if (!cfg) return;
-  const options = cfg.dynamic ? cfg.build(allRows || []) : cfg.options;
   const existing = document.getElementById('colFilterPop');
   if (existing && existing.getAttribute('data-col') === key) { existing.remove(); return; }
   if (existing) existing.remove();
 
+  const cfg = COLUMN_FILTERS[key];
+  const options = cfg ? (cfg.dynamic ? cfg.build(allRows || []) : cfg.options) : null;
+  const hasFilter = !!options;
   const anchor = event.currentTarget;
   const current = new Set(filterState.columnFilters?.[key] || []);
+  const sortActive = sortState.key === key;
+
+  // Column-appropriate sort labels
+  const sortLabels = (key === 'LeaseStartOn')
+    ? { asc: 'Oldest → Newest', desc: 'Newest → Oldest' }
+    : (key === 'Payment' || key === 'Status' || key === 'HOA')
+      ? { asc: 'Sort ascending', desc: 'Sort descending' }
+      : { asc: 'A → Z', desc: 'Z → A' };
 
   const pop = document.createElement('div');
   pop.id = 'colFilterPop';
   pop.className = 'col-filter-pop';
   pop.setAttribute('data-col', key);
   pop.innerHTML = `
-    <div class="cfp-title">Filter ${escapeHtml(cfg.label)}</div>
-    <div class="cfp-options">
-      ${options.map(o => `
-        <label class="cfp-opt">
-          <input type="checkbox" value="${escapeAttr(o.value)}" ${current.has(o.value) ? 'checked' : ''}>
-          <span>${escapeHtml(o.label)}</span>
-        </label>
-      `).join('')}
+    <div class="cfp-section">
+      <button type="button" class="cfp-sort ${sortActive && sortState.dir === 'asc' ? 'active' : ''}" data-dir="asc">
+        <span class="cfp-arrow">↑</span> ${escapeHtml(sortLabels.asc)}
+      </button>
+      <button type="button" class="cfp-sort ${sortActive && sortState.dir === 'desc' ? 'active' : ''}" data-dir="desc">
+        <span class="cfp-arrow">↓</span> ${escapeHtml(sortLabels.desc)}
+      </button>
     </div>
-    <div class="cfp-actions">
-      <button type="button" class="cfp-clear">Clear</button>
-      <button type="button" class="cfp-apply">Apply</button>
-    </div>
+    ${hasFilter ? `
+      <div class="cfp-divider"></div>
+      <div class="cfp-title">Filter ${escapeHtml(cfg.label)}</div>
+      <div class="cfp-options">
+        ${options.map(o => `
+          <label class="cfp-opt">
+            <input type="checkbox" value="${escapeAttr(o.value)}" ${current.has(o.value) ? 'checked' : ''}>
+            <span>${escapeHtml(o.label)}</span>
+          </label>
+        `).join('')}
+      </div>
+      <div class="cfp-actions">
+        <button type="button" class="cfp-clear">Clear</button>
+        <button type="button" class="cfp-apply">Apply</button>
+      </div>
+    ` : ''}
   `;
   document.body.appendChild(pop);
 
@@ -556,20 +572,31 @@ function toggleColumnFilter(event, key) {
   pop.style.top  = (window.scrollY + rect.bottom + 4) + 'px';
   pop.style.left = (window.scrollX + rect.left) + 'px';
 
-  pop.querySelector('.cfp-apply').onclick = () => {
-    const values = [...pop.querySelectorAll('input:checked')].map(i => i.value);
-    filterState.columnFilters = { ...filterState.columnFilters, [key]: values };
-    if (!values.length) delete filterState.columnFilters[key];
-    persistFilters();
-    applyFilters();
-    pop.remove();
-  };
-  pop.querySelector('.cfp-clear').onclick = () => {
-    delete filterState.columnFilters[key];
-    persistFilters();
-    applyFilters();
-    pop.remove();
-  };
+  pop.querySelectorAll('.cfp-sort').forEach(btn => {
+    btn.onclick = () => {
+      sortState.key = key;
+      sortState.dir = btn.getAttribute('data-dir');
+      applyFilters();
+      pop.remove();
+    };
+  });
+
+  if (hasFilter) {
+    pop.querySelector('.cfp-apply').onclick = () => {
+      const values = [...pop.querySelectorAll('input:checked')].map(i => i.value);
+      filterState.columnFilters = { ...filterState.columnFilters, [key]: values };
+      if (!values.length) delete filterState.columnFilters[key];
+      persistFilters();
+      applyFilters();
+      pop.remove();
+    };
+    pop.querySelector('.cfp-clear').onclick = () => {
+      delete filterState.columnFilters[key];
+      persistFilters();
+      applyFilters();
+      pop.remove();
+    };
+  }
 
   setTimeout(() => {
     document.addEventListener('click', _closeColFilterOnOutside, { once: true });

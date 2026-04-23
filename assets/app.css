@@ -50,37 +50,39 @@
 }
 .fast-moveIn-flag:hover::after { opacity: 1; }
 
-th.sortable { cursor: pointer; user-select: none; }
-th.sortable:hover { background: rgba(0,0,0,0.03); }
-.sort-ind {
-  font-size: 10px; color: rgba(0,0,0,0.28);
-  margin-left: 5px; vertical-align: middle;
-  display: inline-block; width: 10px; text-align: center;
-}
-.sort-ind.active { color: #1a1a1a; font-weight: 700; font-size: 11px; }
-
-.col-filter-btn {
+.col-menu-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  margin-left: 8px; padding: 3px 5px;
-  border: 1px solid rgba(0,0,0,0.12); background: #fff;
-  color: var(--muted); cursor: pointer;
-  border-radius: 5px; line-height: 0;
+  margin-left: 6px; padding: 3px 4px;
+  border: none; background: transparent;
+  color: rgba(0,0,0,0.35); cursor: pointer;
+  border-radius: 4px; line-height: 0;
   vertical-align: middle;
   transition: all .12s ease;
 }
-.col-filter-btn svg { display: block; width: 11px; height: 11px; }
-.col-filter-btn:hover {
-  background: #f4f4f4; color: var(--text);
-  border-color: rgba(0,0,0,0.25);
-}
-.col-filter-btn.active {
-  background: #1a1a1a; color: #fff; border-color: #1a1a1a;
-}
-.col-filter-btn.active::after {
-  content: ''; width: 6px; height: 6px; border-radius: 50%;
+.col-menu-btn svg { display: block; width: 11px; height: 11px; }
+.col-menu-btn:hover { background: rgba(0,0,0,0.06); color: var(--text); }
+.col-menu-btn.sort-active   { color: #1a1a1a; background: rgba(0,0,0,0.06); }
+.col-menu-btn.filter-active { color: #fff; background: #1a1a1a; }
+.col-menu-btn.sort-active::after,
+.col-menu-btn.filter-active::after {
+  content: ''; width: 5px; height: 5px; border-radius: 50%;
   background: #3EE4A9; margin-left: 4px;
 }
-th.sortable { padding-right: 8px; }
+
+.cfp-section { display: flex; flex-direction: column; gap: 2px; }
+.cfp-sort {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border: none; background: transparent;
+  font-size: 13px; color: var(--text); text-align: left;
+  border-radius: 5px; cursor: pointer; width: 100%;
+}
+.cfp-sort:hover { background: rgba(0,0,0,0.05); }
+.cfp-sort.active { background: #1a1a1a; color: #fff; font-weight: 600; }
+.cfp-arrow { font-size: 12px; width: 12px; display: inline-block; text-align: center; }
+.cfp-divider {
+  height: 1px; background: rgba(0,0,0,0.08);
+  margin: 8px -10px;
+}
 
 .col-filter-pop {
   position: absolute; z-index: 50;
