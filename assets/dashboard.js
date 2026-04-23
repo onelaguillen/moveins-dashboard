@@ -49,7 +49,10 @@ async function loadData() {
       '"MoveInSpecialist","Concierge","ImprovementsSpecialist",' +
       '"LeaseStartOn","LeaseType","CurrentMilestone","MoveInReady","MoveInCompleted",' +
       '"AdminLink",' +
-      '"RentAmount","DepositAmount","PaymentStatus","BalanceDetail",' +
+      '"RentAmount","DepositAmount","DepositType","EnrolledInAutoPay",' +
+      '"MoveInPaymentStatus","PaidRent","ReceivedRent","ProcessingReceiveRent",' +
+      '"DepositUnpaid","RentUnpaid","HasDeposit","HasRent",' +
+      '"PaymentStatus","BalanceDetail",' +
       '"UnfinishedImprovements","UnfinishedImprovementsCount",' +
       '"UnfinishedGroupDetails","AllUnfinishedDetails",' +
       '"HasHoa","HoaIsNotified"'
@@ -435,16 +438,17 @@ function rowHtml(r) {
   const hasCsvRepairs = (r.UnfinishedImprovementsCount ?? 0) > 0;
   const statusOpen  = expSet.has('status');
   const repairsOpen = expSet.has('repairs');
-  const hasExpansion = statusOpen || repairsOpen;
+  const paymentOpen = expSet.has('payment');
+  const hasExpansion = statusOpen || repairsOpen || paymentOpen;
 
-  const paymentBadge = paymentBadgeHtml(r.PaymentStatus);
+  const paymentBadge = paymentBadgeHtml(r.PaymentStatus, r.HomeId, paymentOpen);
   const hoaBadge     = hoaBadgeHtml(r.HasHoa, r.HoaIsNotified);
 
   const mainRow = `
     <tr class="${hasExpansion ? 'expanded' : ''}">
       <td>
         <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.Address || '—')}</a>
-        ${r.LeaseType ? `<span class="lease-type-tag">${escapeHtml(r.LeaseType)}</span>` : ''}
+        ${r.LeaseType ? `<div style="margin-top:3px"><span class="lease-type-tag">${escapeHtml(r.LeaseType)}</span></div>` : ''}
         ${r.MoveInSpecialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.MoveInSpecialist)}</div>` : ''}
       </td>
       <td style="font-size:12px">${escapeHtml(r.ResidentName || '—')}</td>
@@ -494,6 +498,9 @@ function rowHtml(r) {
         <div class="exp-body">${listHtml}${note}</div>
       </div>
     `;
+  }
+  if (paymentOpen) {
+    expInner += paymentPanelHtml(r);
   }
   if (statusOpen) {
     const title = status === 'postponed' ? 'Postponed' : 'Grant Access — Expectations';
@@ -585,12 +592,45 @@ function labelForStatus(s) {
   })[s] || 'Unknown';
 }
 
-function paymentBadgeHtml(status) {
-  if (!status) return `<span class="mini-badge mini-none">—</span>`;
+function paymentPanelHtml(r) {
+  const money = v => (v == null || v === '' || isNaN(v)) ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const yesNo = v => v === 1 || v === true ? 'Yes' : v === 0 || v === false ? 'No' : '—';
+  const due = formatDateNumeric(r.LeaseStartOn);
+
+  // Parse BalanceDetail: items separated by " || "
+  const items = (r.BalanceDetail || '')
+    .split('||').map(s => s.trim()).filter(Boolean);
+  const breakdown = items.length
+    ? `<div class="pay-breakdown">${items.map(it => `<div class="pay-breakdown-row">${escapeHtml(it)}</div>`).join('')}</div>`
+    : `<div class="faint" style="font-size:12px">All balances paid or no detail available.</div>`;
+
+  return `
+    <div class="exp-section">
+      <div class="exp-header">
+        <span class="exp-label">💲 Payment Details</span>
+        <button class="exp-close" onclick="toggleExpansion(${r.HomeId}, 'payment')" aria-label="Close">✕</button>
+      </div>
+      <div class="exp-body">
+        <div class="pay-grid">
+          <div class="pay-cell"><div class="pay-label">Monthly rent</div><div class="pay-value">${money(r.RentAmount)}</div></div>
+          <div class="pay-cell"><div class="pay-label">Deposit</div><div class="pay-value">${money(r.DepositAmount)}${r.DepositType ? ` <span class="faint">· ${escapeHtml(r.DepositType)}</span>` : ''}</div></div>
+          <div class="pay-cell"><div class="pay-label">Due by</div><div class="pay-value">${due}</div></div>
+          <div class="pay-cell"><div class="pay-label">Autopay</div><div class="pay-value">${yesNo(r.EnrolledInAutoPay)}</div></div>
+          <div class="pay-cell"><div class="pay-label">Move-in payment status</div><div class="pay-value">${escapeHtml(r.MoveInPaymentStatus || '—')}</div></div>
+          <div class="pay-cell"><div class="pay-label">Rollup</div><div class="pay-value">${escapeHtml(r.PaymentStatus || '—')}</div></div>
+        </div>
+        ${breakdown}
+      </div>
+    </div>
+  `;
+}
+
+function paymentBadgeHtml(status, homeId, open) {
+  if (!status) return `<span class="mini-badge mini-none clickable ${open ? 'active' : ''}" onclick="toggleExpansion(${homeId}, 'payment')" title="Payment details">💲</span>`;
   const isPaid = /all\s*paid/i.test(status);
   const isPartial = /unpaid/i.test(status) && !/both/i.test(status);
   const cls = isPaid ? 'mini-ok' : (isPartial ? 'mini-warn' : 'mini-err');
-  return `<span class="mini-badge ${cls}">${escapeHtml(status)}</span>`;
+  return `<span class="mini-badge ${cls} clickable ${open ? 'active' : ''}" onclick="toggleExpansion(${homeId}, 'payment')" title="Show payment details">💲 ${escapeHtml(status)}</span>`;
 }
 
 function hoaBadgeHtml(hasHoa, notified) {
