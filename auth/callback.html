@@ -63,7 +63,7 @@ body {
   <div id="errorState" class="error-state">
     <div class="error-icon">⚠️</div>
     <div class="error-title">Access Denied</div>
-    <div class="error-msg" id="errorMsg">Only @belonghome.com accounts are allowed.</div>
+    <div class="error-msg" id="errorMsg">Only @belonghome.com and @belong.pe accounts are allowed.</div>
     <a href="/login" class="back-btn">← Back to Sign In</a>
   </div>
 </div>
@@ -93,9 +93,10 @@ body {
     const { data: { session: finalSession } } = await sb.auth.getSession();
     const email = finalSession?.user?.email || '';
 
-    if (!email.endsWith('@belonghome.com')) {
+    const allowed = ['@belonghome.com', '@belong.pe'];
+    if (!allowed.some(d => email.endsWith(d))) {
       await sb.auth.signOut();
-      showError(`This dashboard is restricted to @belonghome.com accounts. You signed in as <strong>${email}</strong>.`);
+      showError(`This dashboard is restricted to @belonghome.com and @belong.pe accounts. You signed in as <strong>${email}</strong>.`);
       return;
     }
 

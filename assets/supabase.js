@@ -10,7 +10,7 @@ const ADMIN_EMAILS   = new Set([
   'quiroga.veronica@belonghome.com'
 ]);
 const TAMI_EMAIL     = 'epelbaum.tamara@belonghome.com';
-const ALLOWED_DOMAIN = '@belonghome.com';
+const ALLOWED_DOMAINS = ['@belonghome.com', '@belong.pe'];
 
 function isAdmin(email) { return ADMIN_EMAILS.has((email || '').toLowerCase()); }
 
@@ -26,7 +26,7 @@ async function requireAuth(adminOnly = false) {
     return null;
   }
   const email = session.user.email || '';
-  if (!email.endsWith(ALLOWED_DOMAIN)) {
+  if (!ALLOWED_DOMAINS.some(d => email.endsWith(d))) {
     await sb.auth.signOut();
     window.location.replace('/login?error=domain');
     return null;
@@ -47,8 +47,9 @@ async function signInWithGoogle() {
   const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
-      queryParams: { hd: 'belonghome.com' }
+      redirectTo: `${window.location.origin}/auth/callback`
+      // Note: `hd` param can only restrict to a single Google Workspace domain,
+      // so we omit it and enforce the allowed-domains list in requireAuth().
     }
   });
   if (error) console.error('Sign-in error:', error.message);

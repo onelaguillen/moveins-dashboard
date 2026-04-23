@@ -84,6 +84,10 @@
   margin: 8px -10px;
 }
 
+.count-sep { color: rgba(0,0,0,0.25); margin: 0 4px; }
+.repair-count { color: var(--muted); }
+.repair-count strong { color: var(--text); }
+
 .col-filter-pop {
   position: absolute; z-index: 50;
   background: #fff; border: 1px solid rgba(0,0,0,0.12);

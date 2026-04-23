@@ -623,8 +623,11 @@ function render() {
   const end   = Math.min(start + pageSize, total);
   const page  = filtered.slice(start, end);
 
+  const totalRepairs = filtered.reduce((n, r) => n + (r.UnfinishedImprovementsCount || 0), 0);
+  const homesWithRepairs = filtered.filter(r => (r.UnfinishedImprovementsCount || 0) > 0).length;
   document.getElementById('tableCount').innerHTML =
-    `<strong>${total}</strong> <span>home${total !== 1 ? 's' : ''}${allRows.length !== total ? ` of ${allRows.length}` : ''}</span>`;
+    `<strong>${total}</strong> <span>home${total !== 1 ? 's' : ''}${allRows.length !== total ? ` of ${allRows.length}` : ''}</span>` +
+    ` <span class="count-sep">·</span> <span class="repair-count" title="${homesWithRepairs} home${homesWithRepairs !== 1 ? 's' : ''} with unfinished repairs">🔧 <strong>${totalRepairs}</strong> repair${totalRepairs !== 1 ? 's' : ''}</span>`;
 
   const tbody = document.getElementById('homesBody');
   if (!total) {

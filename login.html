@@ -252,7 +252,7 @@ body { font-family: 'Montserrat', sans-serif; background: #F4F7FA; min-height: 1
 
       <div class="error-banner" id="errorBanner">
         <span>⚠️</span>
-        <span id="errorText">Access restricted to @belonghome.com accounts.</span>
+        <span id="errorText">Access restricted to @belonghome.com and @belong.pe accounts.</span>
       </div>
 
       <div class="card">
@@ -275,7 +275,7 @@ body { font-family: 'Montserrat', sans-serif; background: #F4F7FA; min-height: 1
 
         <div class="notice">
           <span class="notice-icon">🔒</span>
-          <span>Access is restricted to <strong>@belonghome.com</strong> email addresses. Sign in with your Belong Google account.</span>
+          <span>Access is restricted to <strong>@belonghome.com</strong> and <strong>@belong.pe</strong> email addresses. Sign in with your Belong Google account.</span>
         </div>
       </div>
 
@@ -333,7 +333,7 @@ body { font-family: 'Montserrat', sans-serif; background: #F4F7FA; min-height: 1
 (async () => {
   // If already signed in, redirect to dashboard
   const { data: { session } } = await sb.auth.getSession();
-  if (session && session.user.email.endsWith('@belonghome.com')) {
+  if (session && ['@belonghome.com', '@belong.pe'].some(d => session.user.email.endsWith(d))) {
     window.location.replace('/');
     return;
   }
@@ -346,7 +346,7 @@ body { font-family: 'Montserrat', sans-serif; background: #F4F7FA; min-height: 1
     banner.classList.add('show');
     const msg = err === 'idle'
       ? 'You were signed out after 2 hours of inactivity. Please sign in again.'
-      : 'Access restricted to @belonghome.com accounts. Try signing in with your Belong email.';
+      : 'Access restricted to @belonghome.com and @belong.pe accounts. Try signing in with your Belong email.';
     document.getElementById('errorText').textContent = msg;
   }
 
