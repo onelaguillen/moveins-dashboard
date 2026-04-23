@@ -48,6 +48,7 @@
         <button class="chip-btn" id="chip_overdue"   onclick="setDateChip('overdue')">Overdue</button>
         <button class="chip-btn" id="chip_this_week" onclick="setDateChip('this_week')">This Week</button>
         <button class="chip-btn" id="chip_30_days"   onclick="setDateChip('30_days')">30 Days</button>
+        <button class="chip-btn" id="chip_fast_movein" onclick="toggleFastMoveInFilter()" title="Show only Fast Move-Ins (≤7 business days)">⚡ Fast</button>
       </div>
 
       <div class="lt-dropdown" id="leaseTypeDropdown">
@@ -77,15 +78,15 @@
       </div>
       <div style="overflow-x:auto">
         <table>
-          <thead>
+          <thead id="homesHead">
             <tr>
-              <th>Address</th>
-              <th>Resident</th>
-              <th>Move-In</th>
-              <th>Payment</th>
-              <th>HOA</th>
-              <th>HQS</th>
-              <th>Status</th>
+              <th class="sortable" onclick="setSort('Address')">Address<span class="sort-ind" data-sort-key="Address"></span></th>
+              <th class="sortable" onclick="setSort('Resident')">Resident<span class="sort-ind" data-sort-key="Resident"></span></th>
+              <th class="sortable" onclick="setSort('LeaseStartOn')">Move-In<span class="sort-ind" data-sort-key="LeaseStartOn"></span></th>
+              <th class="sortable" onclick="setSort('Payment')">Payment<span class="sort-ind" data-sort-key="Payment"></span></th>
+              <th class="sortable" onclick="setSort('HOA')">HOA<span class="sort-ind" data-sort-key="HOA"></span><button type="button" class="col-filter-btn" data-col="HOA" title="Filter HOA" onclick="toggleColumnFilter(event, 'HOA')">⏷</button></th>
+              <th class="sortable" onclick="setSort('HQS')">HQS<span class="sort-ind" data-sort-key="HQS"></span></th>
+              <th class="sortable" onclick="setSort('Status')">Status<span class="sort-ind" data-sort-key="Status"></span></th>
               <th style="width:90px">Repairs</th>
             </tr>
           </thead>

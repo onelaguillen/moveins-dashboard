@@ -50,6 +50,44 @@
 }
 .fast-moveIn-flag:hover::after { opacity: 1; }
 
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { background: rgba(0,0,0,0.03); }
+.sort-ind { font-size: 10px; color: var(--muted); margin-left: 2px; }
+
+.col-filter-btn {
+  margin-left: 6px; border: none; background: transparent;
+  color: var(--muted); font-size: 10px; cursor: pointer; padding: 0 2px;
+  border-radius: 3px; line-height: 1;
+}
+.col-filter-btn:hover { background: rgba(0,0,0,0.06); color: var(--text); }
+.col-filter-btn.active { color: var(--accent, #3EE4A9); font-weight: 700; }
+
+.col-filter-pop {
+  position: absolute; z-index: 50;
+  background: #fff; border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 10px; min-width: 180px;
+}
+.cfp-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--muted); font-weight: 700; margin-bottom: 8px;
+}
+.cfp-options { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.cfp-opt {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; cursor: pointer;
+}
+.cfp-opt input { cursor: pointer; }
+.cfp-actions { display: flex; justify-content: space-between; gap: 8px; }
+.cfp-actions button {
+  flex: 1; padding: 6px 10px; font-size: 12px; border-radius: 6px;
+  border: 1px solid rgba(0,0,0,0.1); background: #fff; cursor: pointer;
+}
+.cfp-actions .cfp-apply {
+  background: #1a1a1a; color: #fff; border-color: #1a1a1a;
+}
+.cfp-actions button:hover { filter: brightness(1.05); }
+
 .pay-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px 18px; margin-bottom: 12px;

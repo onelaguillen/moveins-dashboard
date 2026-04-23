@@ -18,8 +18,44 @@ const filterState = {
   dateChip: '',       // 'overdue' | 'this_week' | '30_days' | ''
   region: '',
   spec: '',
-  leaseTypes: ['New', 'Turnover']   // default: both selected
+  leaseTypes: ['New', 'Turnover'],  // default: both selected
+  fastMoveIn: false,
+  columnFilters: {}  // { HOA: ['no_hoa','notified','not_notified'], ... }
 };
+
+// Column-filter config: per-column filter options + predicate.
+// Add new columns here to extend the pattern.
+const COLUMN_FILTERS = {
+  HOA: {
+    label: 'HOA',
+    options: [
+      { value: 'no_hoa',       label: 'No HOA',       test: r => !r.HasHoa },
+      { value: 'notified',     label: 'Notified',     test: r => r.HasHoa && r.HoaIsNotified },
+      { value: 'not_notified', label: 'Not notified', test: r => r.HasHoa && !r.HoaIsNotified }
+    ]
+  }
+};
+
+const sortState = { key: 'LeaseStartOn', dir: 'asc' };
+const SORT_KEYS = {
+  Address:       r => (r.Address || '').toLowerCase(),
+  Resident:      r => (r.ResidentName || '').toLowerCase(),
+  LeaseStartOn:  r => r.LeaseStartOn ? new Date(r.LeaseStartOn).getTime() : Infinity,
+  Payment:       r => (r.PaymentStatus || '').toLowerCase(),
+  HOA:           r => (r.HasHoa ? 1 : 0) + (r.HoaIsNotified ? 0.5 : 0),
+  HQS:           r => (r.ImprovementsSpecialist || '').toLowerCase(),
+  Status:        r => r._status || ''
+};
+
+function setSort(key) {
+  if (!SORT_KEYS[key]) return;
+  if (sortState.key === key) {
+    sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortState.key = key; sortState.dir = 'asc';
+  }
+  applyFilters();
+}
 
 // Row expansion state: Map<homeId, Set<'repairs'|'status'>>
 const expanded = new Map();
@@ -178,6 +214,18 @@ function applyFilters() {
       if (!filterState.leaseTypes.includes(r.LeaseType)) return false;
     }
 
+    // Fast move-in filter
+    if (filterState.fastMoveIn && !(r.IsFastMoveIn === 1 || r.IsFastMoveIn === true)) return false;
+
+    // Column filters (Excel-style popovers)
+    for (const [key, values] of Object.entries(filterState.columnFilters || {})) {
+      if (!values || !values.length) continue;
+      const cfg = COLUMN_FILTERS[key];
+      if (!cfg) continue;
+      const opts = cfg.options.filter(o => values.includes(o.value));
+      if (!opts.some(o => o.test(r))) return false;
+    }
+
     // Date range
     if (filterState.dateFrom || filterState.dateTo) {
       if (!r.LeaseStartOn) return false;
@@ -196,6 +244,16 @@ function applyFilters() {
     }
     return true;
   });
+  // Apply sort
+  const keyFn = SORT_KEYS[sortState.key] || SORT_KEYS.LeaseStartOn;
+  const mul = sortState.dir === 'desc' ? -1 : 1;
+  filtered.sort((a, b) => {
+    const va = keyFn(a), vb = keyFn(b);
+    if (va < vb) return -1 * mul;
+    if (va > vb) return  1 * mul;
+    return 0;
+  });
+
   currentPage = 1;
   render();
 }
@@ -205,6 +263,8 @@ function clearFilters() {
   filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
   filterState.region = ''; filterState.spec = '';
   filterState.leaseTypes = ['New', 'Turnover'];
+  filterState.fastMoveIn = false;
+  filterState.columnFilters = {};
   document.getElementById('fSearch').value = '';
   if (window._datePicker) window._datePicker.clear();
   document.getElementById('fRegion').value = '';
@@ -396,10 +456,100 @@ function updateDateChipsUI() {
     const el = document.getElementById('chip_' + c);
     if (el) el.classList.toggle('active', filterState.dateChip === c);
   });
+  const fast = document.getElementById('chip_fast_movein');
+  if (fast) fast.classList.toggle('active', !!filterState.fastMoveIn);
+}
+
+function toggleFastMoveInFilter() {
+  filterState.fastMoveIn = !filterState.fastMoveIn;
+  updateDateChipsUI();
+  persistFilters();
+  applyFilters();
 }
 
 // ── Render table ─────────────────────────────────────────────────────────────
+function renderSortIndicators() {
+  document.querySelectorAll('.sort-ind').forEach(el => {
+    const k = el.getAttribute('data-sort-key');
+    el.textContent = (sortState.key === k) ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  });
+  // Refresh funnel-icon active state
+  document.querySelectorAll('.col-filter-btn').forEach(btn => {
+    const k = btn.getAttribute('data-col');
+    const active = (filterState.columnFilters?.[k] || []).length > 0;
+    btn.classList.toggle('active', active);
+  });
+}
+
+// ── Column filter popover ───────────────────────────────────────────────────
+function toggleColumnFilter(event, key) {
+  event.stopPropagation();
+  const cfg = COLUMN_FILTERS[key];
+  if (!cfg) return;
+  const existing = document.getElementById('colFilterPop');
+  if (existing && existing.getAttribute('data-col') === key) { existing.remove(); return; }
+  if (existing) existing.remove();
+
+  const anchor = event.currentTarget;
+  const current = new Set(filterState.columnFilters?.[key] || []);
+
+  const pop = document.createElement('div');
+  pop.id = 'colFilterPop';
+  pop.className = 'col-filter-pop';
+  pop.setAttribute('data-col', key);
+  pop.innerHTML = `
+    <div class="cfp-title">Filter ${escapeHtml(cfg.label)}</div>
+    <div class="cfp-options">
+      ${cfg.options.map(o => `
+        <label class="cfp-opt">
+          <input type="checkbox" value="${escapeAttr(o.value)}" ${current.has(o.value) ? 'checked' : ''}>
+          <span>${escapeHtml(o.label)}</span>
+        </label>
+      `).join('')}
+    </div>
+    <div class="cfp-actions">
+      <button type="button" class="cfp-clear">Clear</button>
+      <button type="button" class="cfp-apply">Apply</button>
+    </div>
+  `;
+  document.body.appendChild(pop);
+
+  const rect = anchor.getBoundingClientRect();
+  pop.style.top  = (window.scrollY + rect.bottom + 4) + 'px';
+  pop.style.left = (window.scrollX + rect.left) + 'px';
+
+  pop.querySelector('.cfp-apply').onclick = () => {
+    const values = [...pop.querySelectorAll('input:checked')].map(i => i.value);
+    filterState.columnFilters = { ...filterState.columnFilters, [key]: values };
+    if (!values.length) delete filterState.columnFilters[key];
+    persistFilters();
+    applyFilters();
+    pop.remove();
+  };
+  pop.querySelector('.cfp-clear').onclick = () => {
+    delete filterState.columnFilters[key];
+    persistFilters();
+    applyFilters();
+    pop.remove();
+  };
+
+  setTimeout(() => {
+    document.addEventListener('click', _closeColFilterOnOutside, { once: true });
+  }, 0);
+}
+
+function _closeColFilterOnOutside(e) {
+  const pop = document.getElementById('colFilterPop');
+  if (!pop) return;
+  if (pop.contains(e.target)) {
+    document.addEventListener('click', _closeColFilterOnOutside, { once: true });
+    return;
+  }
+  pop.remove();
+}
+
 function render() {
+  renderSortIndicators();
   renderMetrics();  // keep counts live (they don't change from filters, but layout re-highlights)
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -448,7 +598,7 @@ function rowHtml(r) {
   const mainRow = `
     <tr class="${hasExpansion ? 'expanded' : ''}">
       <td>
-        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.Address || '—')}</a>${(r.IsFastMoveIn === 1 || r.IsFastMoveIn === true) ? ` <span class="fast-moveIn-flag" data-tip="Fast Move-In" onclick="toggleExpansion(${r.HomeId}, 'payment')">⚡</span>` : ''}
+        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.Address || '—')}</a>${(r.IsFastMoveIn === 1 || r.IsFastMoveIn === true) ? ` <span class="fast-moveIn-flag" data-tip="Fast Move-In" onclick="toggleExpansion(${r.HomeId}, 'payment')">⚡</span>` : ''}${(r.BusinessDaysToLeaseStart != null && r.BusinessDaysToLeaseStart <= 3) ? ` <span class="fast-moveIn-flag critical" data-tip="Critical — ${r.BusinessDaysToLeaseStart} biz day${r.BusinessDaysToLeaseStart === 1 ? '' : 's'} left" onclick="toggleExpansion(${r.HomeId}, 'payment')">🚨</span>` : ''}
         ${r.LeaseType ? `<div style="margin-top:3px"><span class="lease-type-tag">${escapeHtml(r.LeaseType)}</span></div>` : ''}
         ${r.MoveInSpecialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.MoveInSpecialist)}</div>` : ''}
       </td>
