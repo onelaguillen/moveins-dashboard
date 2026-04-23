@@ -598,6 +598,11 @@ function paymentPanelHtml(r) {
   const yesNo = v => v === 1 || v === true ? 'Yes' : v === 0 || v === false ? 'No' : '—';
   const dueDate   = r.PaymentDueDate ? formatDateNumeric(r.PaymentDueDate) : formatDateNumeric(r.LeaseStartOn);
   const leaseStart = formatDateNumeric(r.LeaseStartOn);
+  const leaseExecuted = r.LeaseExecutedOn ? formatDateNumeric(r.LeaseExecutedOn) : '—';
+  const daysSigned = r.DaysToLeaseStart;
+  const daysSignedLabel = (daysSigned == null || daysSigned === '')
+    ? '—'
+    : `${daysSigned} day${daysSigned === 1 ? '' : 's'}`;
   const isFast = r.IsFastMoveIn === 1 || r.IsFastMoveIn === true;
   const bizDays = r.BusinessDaysToLeaseStart;
 
@@ -616,16 +621,18 @@ function paymentPanelHtml(r) {
   return `
     <div class="exp-section">
       <div class="exp-header">
-        <span class="exp-label">💲 Payment Details</span>
+        <span class="exp-label">📝 Lease & Payment</span>
         <button class="exp-close" onclick="toggleExpansion(${r.HomeId}, 'payment')" aria-label="Close">✕</button>
       </div>
       <div class="exp-body">
         ${fastBanner}
         <div class="pay-grid">
+          <div class="pay-cell"><div class="pay-label">Lease signed</div><div class="pay-value">${leaseExecuted}</div></div>
+          <div class="pay-cell"><div class="pay-label">Lease start</div><div class="pay-value">${leaseStart}</div></div>
+          <div class="pay-cell"><div class="pay-label">Signed → move-in</div><div class="pay-value">${daysSignedLabel}${bizDays != null ? ` <span class="faint">(${bizDays} biz)</span>` : ''}</div></div>
+          <div class="pay-cell"><div class="pay-label">Payment due</div><div class="pay-value">${dueDate}${isFast ? ' <span class="faint">(immediately)</span>' : ''}</div></div>
           <div class="pay-cell"><div class="pay-label">Monthly rent</div><div class="pay-value">${money(r.RentAmount)}</div></div>
           <div class="pay-cell"><div class="pay-label">Deposit</div><div class="pay-value">${money(r.DepositAmount)}${r.DepositType ? ` <span class="faint">· ${escapeHtml(r.DepositType)}</span>` : ''}</div></div>
-          <div class="pay-cell"><div class="pay-label">Payment due</div><div class="pay-value">${dueDate}${isFast ? ' <span class="faint">(immediately)</span>' : ''}</div></div>
-          <div class="pay-cell"><div class="pay-label">Lease start</div><div class="pay-value">${leaseStart}</div></div>
           <div class="pay-cell"><div class="pay-label">Autopay</div><div class="pay-value">${yesNo(r.EnrolledInAutoPay)}</div></div>
           <div class="pay-cell"><div class="pay-label">Move-in payment status</div><div class="pay-value">${escapeHtml(r.MoveInPaymentStatus || '—')}</div></div>
           <div class="pay-cell"><div class="pay-label">Rollup</div><div class="pay-value">${escapeHtml(r.PaymentStatus || '—')}</div></div>
