@@ -89,7 +89,7 @@ function startOnlineUsersPanel(session) {
           </div>
           <span class="online-page">${escHtml(pageLabel)}</span>
           <span class="online-status"><i class="dot ${dotCls}"></i>${escHtml(statusLabel)}</span>
-          <button class="btn-kick" ${isMe ? 'disabled title="That\\'s you"' : `onclick="kickUser('${escAttr(u.id||'')}','${escAttr(u.email)}','${escAttr(u.name)}')"`}>
+          <button class="btn-kick" ${isMe ? 'disabled title="You"' : `onclick="kickUser('${escAttr(u.id||'')}','${escAttr(u.email)}','${escAttr(u.name)}')"`}>
             Sign out
           </button>
         </div>`;
