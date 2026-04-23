@@ -13,7 +13,8 @@ const INT_COLS = new Set([
   'ImprovementsSpecialistId','HasHoa','HoaIsNotified','HadQAInspection','QAInspectionCount',
   'UnfinishedImprovements','UnfinishedImprovementsCount','IsSatisfied','CSATResponseCount',
   'NewProServices','NewProServicesCount','BalancesUnpaid','DepositUnpaid','RentUnpaid',
-  'HasDeposit','HasRent','IsPerfectMoveIn','IsPerfectMoveInStrict','EnrolledInAutoPay'
+  'HasDeposit','HasRent','IsPerfectMoveIn','IsPerfectMoveInStrict','EnrolledInAutoPay',
+  'DaysToLeaseStart','BusinessDaysToLeaseStart','IsFastMoveIn'
 ]);
 const FLOAT_COLS = new Set([
   'DepositAmount','RentAmount','PaidRent','ReceivedRent','ProcessingReceiveRent','AvgRating'

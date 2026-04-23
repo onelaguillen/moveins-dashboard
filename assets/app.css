@@ -26,6 +26,12 @@
 .lt-menu input[type="checkbox"] { margin: 0; cursor: pointer; }
 
 /* Payment panel (dashboard row expansion) */
+.fast-moveIn-banner {
+  background: #FFF4E0; border: 1px solid #FFAF00; color: #7A4A00;
+  padding: 10px 12px; border-radius: 8px; font-size: 12px;
+  margin-bottom: 12px; line-height: 1.45;
+}
+
 .pay-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px 18px; margin-bottom: 12px;

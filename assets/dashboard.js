@@ -52,7 +52,8 @@ async function loadData() {
       '"RentAmount","DepositAmount","DepositType","EnrolledInAutoPay",' +
       '"MoveInPaymentStatus","PaidRent","ReceivedRent","ProcessingReceiveRent",' +
       '"DepositUnpaid","RentUnpaid","HasDeposit","HasRent",' +
-      '"PaymentStatus","BalanceDetail",' +
+      '"PaymentStatus","BalanceDetail","PaymentDueDate","IsFastMoveIn",' +
+      '"DaysToLeaseStart","BusinessDaysToLeaseStart",' +
       '"UnfinishedImprovements","UnfinishedImprovementsCount",' +
       '"UnfinishedGroupDetails","AllUnfinishedDetails",' +
       '"HasHoa","HoaIsNotified"'
@@ -595,9 +596,17 @@ function labelForStatus(s) {
 function paymentPanelHtml(r) {
   const money = v => (v == null || v === '' || isNaN(v)) ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const yesNo = v => v === 1 || v === true ? 'Yes' : v === 0 || v === false ? 'No' : '—';
-  const due = formatDateNumeric(r.LeaseStartOn);
+  const dueDate   = r.PaymentDueDate ? formatDateNumeric(r.PaymentDueDate) : formatDateNumeric(r.LeaseStartOn);
+  const leaseStart = formatDateNumeric(r.LeaseStartOn);
+  const isFast = r.IsFastMoveIn === 1 || r.IsFastMoveIn === true;
+  const bizDays = r.BusinessDaysToLeaseStart;
 
-  // Parse BalanceDetail: items separated by " || "
+  const fastBanner = isFast
+    ? `<div class="fast-moveIn-banner">
+         ⚡ <strong>Fast Move-In</strong> — only ${bizDays != null ? bizDays : '≤7'} business day${bizDays === 1 ? '' : 's'} until lease start. Resident must <strong>wire</strong> the payment; ACH won't clear in time.
+       </div>`
+    : '';
+
   const items = (r.BalanceDetail || '')
     .split('||').map(s => s.trim()).filter(Boolean);
   const breakdown = items.length
@@ -611,10 +620,12 @@ function paymentPanelHtml(r) {
         <button class="exp-close" onclick="toggleExpansion(${r.HomeId}, 'payment')" aria-label="Close">✕</button>
       </div>
       <div class="exp-body">
+        ${fastBanner}
         <div class="pay-grid">
           <div class="pay-cell"><div class="pay-label">Monthly rent</div><div class="pay-value">${money(r.RentAmount)}</div></div>
           <div class="pay-cell"><div class="pay-label">Deposit</div><div class="pay-value">${money(r.DepositAmount)}${r.DepositType ? ` <span class="faint">· ${escapeHtml(r.DepositType)}</span>` : ''}</div></div>
-          <div class="pay-cell"><div class="pay-label">Due by</div><div class="pay-value">${due}</div></div>
+          <div class="pay-cell"><div class="pay-label">Payment due</div><div class="pay-value">${dueDate}${isFast ? ' <span class="faint">(immediately)</span>' : ''}</div></div>
+          <div class="pay-cell"><div class="pay-label">Lease start</div><div class="pay-value">${leaseStart}</div></div>
           <div class="pay-cell"><div class="pay-label">Autopay</div><div class="pay-value">${yesNo(r.EnrolledInAutoPay)}</div></div>
           <div class="pay-cell"><div class="pay-label">Move-in payment status</div><div class="pay-value">${escapeHtml(r.MoveInPaymentStatus || '—')}</div></div>
           <div class="pay-cell"><div class="pay-label">Rollup</div><div class="pay-value">${escapeHtml(r.PaymentStatus || '—')}</div></div>
