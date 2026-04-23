@@ -3,479 +3,491 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Data Manager — Belong</title>
+<title>Manage — Belong Dashboard</title>
 <link rel="icon" href="https://belonghome.com/favicon.ico">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/js/auth.js"></script>
 <style>
 :root {
-  --bg: #F4F7FA; --surface: #fff; --surface2: #F0F4F8; --surface3: #E8EDF2;
-  --border: #E2E8F0; --border2: #CBD5E0;
-  --text: #1A2B3C; --muted: #5A6B7A; --faint: #94A3B8;
-  --navy: #325E77; --navy-dim: rgba(50,94,119,0.08); --navy-border: rgba(50,94,119,0.20);
-  --green: #1DB87A; --green-bright: #3EE4A9; --green-dim: rgba(62,228,169,0.12); --green-border: rgba(30,184,122,0.25);
-  --amber: #D97706; --amber-dim: rgba(217,119,6,0.10); --amber-border: rgba(217,119,6,0.22);
-  --red: #DC2626; --red-dim: rgba(220,38,38,0.08); --red-border: rgba(220,38,38,0.20);
-  --r: 10px; --rsm: 6px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.07);
+  --bg: #F4F7FA;
+  --surface: #FFFFFF;
+  --surface2: #F0F4F8;
+  --surface3: #E8EDF2;
+  --border: #E2E8F0;
+  --border2: #CBD5E0;
+  --text: #1A2B3C;
+  --muted: #5A6B7A;
+  --faint: #94A3B8;
+  --navy: #325E77;
+  --navy-dim: rgba(50,94,119,0.08);
+  --green: #1DB87A;
+  --green-dim: rgba(62,228,169,0.12);
+  --green-border: rgba(30,184,122,0.25);
+  --red: #DC2626;
+  --red-dim: rgba(220,38,38,0.08);
+  --red-border: rgba(220,38,38,0.20);
+  --r: 10px;
+  --rsm: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Montserrat', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; }
 
-/* ── Header ── */
-header { display: flex; align-items: center; justify-content: space-between; padding: 0 28px; height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); box-shadow: var(--shadow); position: sticky; top: 0; z-index: 50; }
-.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.logo-sep { color: var(--faint); margin: 0 4px; font-size: 14px; }
-.logo-sub { font-size: 12px; font-weight: 600; color: var(--navy); }
-.admin-badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border); margin-left: 4px; text-transform: uppercase; letter-spacing: .06em; }
+/* Header */
+header { display: flex; align-items: center; justify-content: space-between; padding: 0 28px; height: 56px; border-bottom: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); position: sticky; top: 0; z-index: 50; }
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-sub { font-size: 12px; font-weight: 600; color: var(--navy); background: var(--navy-dim); border: 1px solid rgba(50,94,119,0.2); border-radius: 4px; padding: 2px 8px; }
 .header-right { display: flex; align-items: center; gap: 10px; }
-.btn { font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; border-radius: var(--rsm); padding: 7px 14px; cursor: pointer; transition: all .15s; border: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.user-name { font-size: 11px; font-weight: 600; color: var(--muted); }
+.avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; display: none; border: 2px solid var(--border); }
+.btn { font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; border-radius: var(--rsm); padding: 7px 14px; cursor: pointer; transition: all .15s; border: none; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
 .btn-ghost { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 .btn-ghost:hover { background: var(--surface3); color: var(--text); }
-.btn-primary { background: var(--navy); color: #fff; }
-.btn-primary:hover { background: #264d61; box-shadow: 0 0 0 3px var(--navy-dim); }
-.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
-.btn-danger:hover { background: var(--red); color: #fff; }
-.btn-upload { position: relative; overflow: hidden; }
-.btn-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; }
+.btn-navy { background: var(--navy); color: #fff; }
+.btn-navy:hover { background: #264d61; }
+.btn-red { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.btn-red:hover { background: var(--red); color: #fff; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Layout ── */
-.page { max-width: 900px; margin: 0 auto; padding: 32px 24px 80px; }
-.page-header { margin-bottom: 28px; }
-.page-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
-.page-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
+/* Page */
+.page { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
 
-/* ── Upload zone ── */
-.upload-zone {
-  border: 2px dashed var(--border2);
-  border-radius: var(--r);
-  padding: 36px 24px;
-  text-align: center;
-  background: var(--surface);
-  cursor: pointer;
-  transition: all .2s;
-  margin-bottom: 28px;
-  position: relative;
-  overflow: hidden;
-}
-.upload-zone:hover, .upload-zone.drag-over {
-  border-color: var(--navy);
-  background: var(--navy-dim);
-}
-.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.upload-icon { font-size: 28px; margin-bottom: 10px; }
-.upload-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.upload-sub { font-size: 11px; color: var(--faint); font-weight: 500; }
-.upload-hint { font-size: 10px; color: var(--faint); margin-top: 10px; font-style: italic; }
+/* Upload zone */
+.upload-section { margin-bottom: 32px; }
+.section-title { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
+.drop-zone { border: 2px dashed var(--border2); border-radius: var(--r); padding: 40px 24px; text-align: center; cursor: pointer; transition: all .2s; background: var(--surface); position: relative; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--navy); background: var(--navy-dim); }
+.drop-icon { font-size: 28px; margin-bottom: 10px; }
+.drop-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.drop-sub { font-size: 11px; color: var(--faint); }
+.drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-progress { margin-top: 14px; display: none; }
+.progress-bar-bg { height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
+.progress-bar-fill { height: 100%; background: var(--green); border-radius: 2px; width: 0%; transition: width .3s; }
+.progress-label { font-size: 10px; font-weight: 600; color: var(--muted); text-align: center; }
 
-/* ── Stats row ── */
-.stats-row { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-.mini-stat { flex: 1; min-width: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--rsm); padding: 14px 16px; box-shadow: var(--shadow); }
-.mini-stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin-bottom: 4px; }
-.mini-stat-value { font-size: 24px; font-weight: 300; color: var(--text); }
-.mini-stat-value.green { color: var(--green); }
-.mini-stat-value.amber { color: var(--amber); }
-.mini-stat-value.navy { color: var(--navy); }
+/* Homes table */
+.homes-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+.delete-bar { display: none; align-items: center; justify-content: space-between; padding: 10px 20px; background: var(--red-dim); border-bottom: 1px solid var(--red-border); }
+.delete-bar.show { display: flex; }
+.delete-bar-text { font-size: 12px; font-weight: 600; color: var(--red); }
+.table-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
+.table-count { font-size: 12px; font-weight: 600; color: var(--text); }
+.table-count span { color: var(--faint); font-weight: 400; }
+.page-size-select { font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rsm); padding: 5px 10px; cursor: pointer; outline: none; }
+.page-size-select:focus { border-color: var(--navy); }
 
-/* ── Section title ── */
-.section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--faint); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+table { width: 100%; border-collapse: collapse; }
+thead { background: var(--surface2); }
+th { padding: 9px 14px; text-align: left; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface2); }
+tr.selected td { background: rgba(220,38,38,0.04); }
+.cb { width: 15px; height: 15px; cursor: pointer; accent-color: var(--navy); }
+.home-address { font-weight: 600; }
+.admin-link { font-size: 10px; color: var(--navy); text-decoration: none; font-weight: 600; }
+.admin-link:hover { text-decoration: underline; }
 
-/* ── File list ── */
-.file-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
-.file-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  transition: box-shadow .15s;
-}
-.file-card:hover { box-shadow: var(--shadow-md); }
-.file-card.active { border-left: 3px solid var(--green); }
-.file-card.inactive { border-left: 3px solid var(--border2); opacity: .75; }
+/* Empty */
+.empty-state { padding: 60px 20px; text-align: center; }
+.empty-icon { font-size: 32px; margin-bottom: 12px; }
+.empty-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.empty-sub { font-size: 11px; color: var(--faint); }
 
-.file-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  cursor: pointer;
-}
-.file-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.file-dot.on  { background: var(--green); }
-.file-dot.off { background: var(--faint); }
+/* Pagination */
+.pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+.page-info { font-size: 11px; color: var(--faint); font-weight: 500; }
+.page-btns { display: flex; gap: 4px; }
+.page-btn { font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rsm); padding: 5px 10px; cursor: pointer; transition: all .12s; }
+.page-btn:hover:not(:disabled) { border-color: var(--navy); color: var(--navy); }
+.page-btn.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.file-info { flex: 1; min-width: 0; }
-.file-name { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
-.file-meta { font-size: 10px; font-weight: 500; color: var(--faint); display: flex; gap: 12px; flex-wrap: wrap; }
-.file-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 700; }
-.badge-active   { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
-.badge-inactive { background: var(--surface2); color: var(--faint); border: 1px solid var(--border); }
-.badge-latest   { background: var(--navy-dim); color: var(--navy); border: 1px solid var(--navy-border); }
+/* Skeleton */
+.skel { height: 12px; background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 4px; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-.file-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.icon-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 13px; transition: all .12s; color: var(--faint); }
-.icon-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
-.icon-btn.danger:hover { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
-.expand-btn { font-family: 'Montserrat', sans-serif; font-size: 10px; font-weight: 600; color: var(--faint); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all .12s; }
-.expand-btn:hover { background: var(--surface2); color: var(--navy); }
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--surface); border-radius: var(--r); padding: 28px; max-width: 400px; width: 90%; box-shadow: var(--shadow-md); }
+.modal-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.modal-body { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+.modal-body strong { color: var(--red); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
-/* ── File preview ── */
-.file-preview { display: none; border-top: 1px solid var(--border); padding: 14px 18px; background: var(--surface2); }
-.file-preview.open { display: block; }
-.preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
-.preview-home { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rsm); padding: 10px 12px; }
-.preview-addr { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 3px; line-height: 1.3; }
-.preview-meta { font-size: 10px; color: var(--faint); font-weight: 500; }
-.preview-status { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-.ps { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
-.ps-ready    { background: var(--green-dim); color: var(--green); }
-.ps-postponed{ background: var(--red-dim); color: var(--red); }
-.ps-grant    { background: rgba(37,99,235,0.08); color: #2563EB; }
-.ps-signed   { background: var(--green-dim); color: var(--green); opacity: .6; }
-.preview-more { font-size: 11px; color: var(--faint); font-style: italic; padding: 8px 0; text-align: center; }
-
-/* ── Empty state ── */
-.empty-state { text-align: center; padding: 48px 24px; color: var(--faint); }
-.empty-icon  { font-size: 36px; margin-bottom: 12px; }
-.empty-title { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-.empty-sub   { font-size: 12px; font-weight: 400; }
-
-/* ── Toast ── */
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); border-radius: var(--rsm); padding: 10px 20px; font-size: 12px; font-weight: 600; color: #fff; z-index: 200; opacity: 0; transition: opacity .2s; pointer-events: none; box-shadow: var(--shadow-md); white-space: nowrap; }
-.toast.show { opacity: 1; }
-
-/* ── Confirm dialog ── */
-.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100; align-items: center; justify-content: center; }
-.overlay.show { display: flex; }
-.dialog { background: var(--surface); border-radius: var(--r); padding: 28px; max-width: 360px; width: 90%; box-shadow: var(--shadow-md); }
-.dialog-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
-.dialog-body  { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
-.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; font-size: 10px; font-weight: 500; color: var(--faint); }
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: #fff; font-size: 12px; font-weight: 600; border-radius: var(--rsm); padding: 10px 18px; box-shadow: var(--shadow-md); z-index: 999; opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { background: var(--red); }
+.toast.success { background: var(--green); }
 </style>
 </head>
 <body>
 
-<header>
-  <a href="/" class="logo">
-    <img src="https://belonghome.imgix.net/logos/belong_logo_web_white.svg" alt="Belong" height="20"
-         style="filter:invert(1) sepia(1) saturate(0) brightness(0.25);"
-         onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'belong',style:'font-size:20px;font-weight:700;color:#1A2B3C'}))">
-    <span class="logo-sep">/</span>
-    <span class="logo-sub">Data Manager</span>
-    <span class="admin-badge">Admin</span>
-  </a>
-  <div class="header-right">
-    <a href="/" class="btn btn-ghost" style="text-decoration:none;">← Dashboard</a>
-    <label class="btn btn-primary btn-upload">
-      ↑ Upload JSON
-      <input type="file" accept=".json" multiple onchange="handleUpload(this)">
-    </label>
-    <div style="display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;">
-      <img id="userAvatar" src="" alt="" style="display:none;width:22px;height:22px;border-radius:50%;object-fit:cover;">
-      <span id="userName" style="font-size:11px;font-weight:600;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-      <button onclick="signOut()" style="font-family:'Montserrat',sans-serif;font-size:10px;font-weight:600;color:var(--faint);background:none;border:none;cursor:pointer;" title="Sign out">↩</button>
-    </div>
-  </div>
-</header>
+<div id="loadingState" style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Montserrat',sans-serif;font-size:13px;color:#94A3B8;font-weight:500;">
+  Checking access…
+</div>
 
-<div class="page">
-  <div class="page-header">
-    <div class="page-title">Data Manager</div>
-    <div class="page-sub">Upload, review, and manage JSON data files. Only active files are shown on the dashboard.</div>
-  </div>
+<div id="pageContent" style="display:none">
+  <header>
+    <div class="logo">
+      <svg width="24" height="24" viewBox="0 0 40 40" fill="none"><path d="M20 4L4 14v22h32V14L20 4z" fill="#325E77"/><path d="M14 36V24h12v12" fill="#3EE4A9"/></svg>
+      <span style="font-size:13px;font-weight:700;color:#1A2B3C">Belong</span>
+      <span style="color:#E2E8F0;margin:0 4px">/</span>
+      <span class="logo-sub">Manage</span>
+    </div>
+    <div class="header-right">
+      <img class="avatar" id="userAvatar" src="" alt="">
+      <span class="user-name" id="userName"></span>
+      <button class="btn btn-ghost" onclick="signOut()">Sign out</button>
+      <a href="/" class="btn btn-navy">← Dashboard</a>
+    </div>
+  </header>
 
-  <!-- Upload zone -->
-  <div class="upload-zone" id="uploadZone"
-       ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
-    <input type="file" accept=".json" multiple onchange="handleUpload(this)">
-    <div class="upload-icon">📂</div>
-    <div class="upload-title">Drop JSON files here or click to browse</div>
-    <div class="upload-sub">Upload one or multiple files at once</div>
-    <div class="upload-hint">Expected format: <code>{ "generated_at": "...", "homes": [...] }</code></div>
-  </div>
+  <div class="page">
 
-  <!-- Stats -->
-  <div class="stats-row">
-    <div class="mini-stat">
-      <div class="mini-stat-label">Total Files</div>
-      <div class="mini-stat-value navy" id="statTotal">—</div>
+    <!-- Upload -->
+    <div class="upload-section">
+      <div class="section-title">Upload BigQuery Export</div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" accept=".csv" id="csvInput" onchange="handleFile(this.files[0])">
+        <div class="drop-icon">📂</div>
+        <div class="drop-title">Drop your CSV here or click to browse</div>
+        <div class="drop-sub">BigQuery export · upserts by HomeId · existing homes are updated, new ones added</div>
+      </div>
+      <div class="upload-progress" id="uploadProgress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+        <div class="progress-label" id="progressLabel">Uploading…</div>
+      </div>
     </div>
-    <div class="mini-stat">
-      <div class="mini-stat-label">Active</div>
-      <div class="mini-stat-value green" id="statActive">—</div>
-    </div>
-    <div class="mini-stat">
-      <div class="mini-stat-label">Hidden</div>
-      <div class="mini-stat-value" id="statHidden">—</div>
-    </div>
-    <div class="mini-stat">
-      <div class="mini-stat-label">Homes (latest)</div>
-      <div class="mini-stat-value navy" id="statHomes">—</div>
-    </div>
-  </div>
 
-  <!-- Active files -->
-  <div class="section-title">Active Files</div>
-  <div class="file-list" id="activeList">
-    <div class="empty-state">
-      <div class="empty-icon">📋</div>
-      <div class="empty-title">No active files</div>
-      <div class="empty-sub">Upload a JSON file to get started</div>
+    <!-- Table -->
+    <div class="homes-section">
+      <div class="delete-bar" id="deleteBar">
+        <span class="delete-bar-text" id="deleteBarText">0 homes selected</span>
+        <button class="btn btn-red" onclick="confirmDelete()">Delete selected</button>
+      </div>
+      <div class="table-header">
+        <div class="table-count" id="tableCount">Loading…</div>
+        <select class="page-size-select" id="pageSizeSelect" onchange="changePageSize()">
+          <option value="10">10 per page</option>
+          <option value="20" selected>20 per page</option>
+          <option value="50">50 per page</option>
+          <option value="100">100 per page</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px"><input type="checkbox" class="cb" id="selectAll" onchange="toggleSelectAll()"></th>
+              <th>Address</th>
+              <th>Region</th>
+              <th>Move-In Specialist</th>
+              <th>Lease Start</th>
+              <th>Milestone</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="homesBody">
+            <tr><td></td><td><div class="skel" style="width:240px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:120px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:100px"></div></td><td></td></tr>
+            <tr><td></td><td><div class="skel" style="width:200px"></div></td><td><div class="skel" style="width:60px"></div></td><td><div class="skel" style="width:140px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:90px"></div></td><td></td></tr>
+            <tr><td></td><td><div class="skel" style="width:260px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:110px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:110px"></div></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination" style="display:none">
+        <div class="page-info" id="pageInfo"></div>
+        <div class="page-btns" id="pageBtns"></div>
+      </div>
     </div>
-  </div>
 
-  <!-- Inactive files -->
-  <div id="inactiveSection" style="display:none">
-    <div class="section-title">Hidden Files</div>
-    <div class="file-list" id="inactiveList"></div>
   </div>
 </div>
 
-<footer>
-  <span id="footLeft">Data Manager · Admin only</span>
-  <span id="footRight">—</span>
-</footer>
+<!-- Confirm modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">Delete homes?</div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-red" onclick="executeDelete()">Delete</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
-<!-- Delete confirm dialog -->
-<div class="overlay" id="deleteOverlay">
-  <div class="dialog">
-    <div class="dialog-title">Delete this file?</div>
-    <div class="dialog-body" id="deleteMsg">This will permanently remove the file and all its data from Supabase. This cannot be undone.</div>
-    <div class="dialog-actions">
-      <button class="btn btn-ghost" onclick="closeDelete()">Cancel</button>
-      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="/js/auth.js"></script>
 <script>
-let files = [];
-let pendingDeleteId = null;
-let expandedFiles = new Set();
+let allHomes = [];
+let currentPage = 1;
+let pageSize = 20;
+let selectedIds = new Set();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {
-  // Admin-only auth guard
   const session = await requireAuth(true);
   if (!session) return;
 
-  // Show user info
   const user = session.user;
-  document.getElementById('userName').textContent = user.user_metadata?.full_name || user.email;
-  const av = document.getElementById('userAvatar');
-  if (user.user_metadata?.avatar_url) { av.src = user.user_metadata.avatar_url; av.style.display = 'block'; }
+  const nameEl = document.getElementById('userName');
+  if (nameEl) nameEl.textContent = user.user_metadata?.full_name || user.email;
+  const avatarEl = document.getElementById('userAvatar');
+  if (avatarEl && user.user_metadata?.avatar_url) {
+    avatarEl.src = user.user_metadata.avatar_url;
+    avatarEl.style.display = 'block';
+  }
 
-  await loadFiles();
-  renderFiles();
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('pageContent').style.display = 'block';
+
+  setupDragDrop();
+  await loadHomes();
 })();
 
-// ── Load from Supabase ────────────────────────────────────────────────────────
-async function loadFiles() {
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadHomes() {
   const { data, error } = await sb
-    .from('belong_files')
-    .select('*')
-    .order('generated_at', { ascending: false });
+    .from('homes')
+    .select('"HomeId","Address","Region","MoveInSpecialist","LeaseStartOn","CurrentMilestone","AdminLink"')
+    .order('"LeaseStartOn"', { ascending: true });
 
-  if (error) { toast('❌ Could not load files: ' + error.message, true); return; }
-  files = data || [];
+  if (error) { showToast('Failed to load homes', 'error'); return; }
+  allHomes = data || [];
+  selectedIds.clear();
+  currentPage = 1;
+  renderTable();
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
-function renderFiles() {
-  const active   = files.filter(f => f.active);
-  const inactive = files.filter(f => !f.active);
-  const latest   = active[0];
+function renderTable() {
+  const total = allHomes.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  currentPage = Math.min(currentPage, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const end = Math.min(start + pageSize, total);
+  const page = allHomes.slice(start, end);
 
-  // Stats
-  document.getElementById('statTotal').textContent  = files.length;
-  document.getElementById('statActive').textContent = active.length;
-  document.getElementById('statHidden').textContent = inactive.length;
-  document.getElementById('statHomes').textContent  = latest ? (latest.homes || []).length : '—';
+  // Count
+  document.getElementById('tableCount').innerHTML =
+    `<strong>${total}</strong> <span>home${total !== 1 ? 's' : ''} in Supabase</span>`;
 
-  document.getElementById('footRight').textContent = `Last updated ${new Date().toLocaleTimeString()}`;
+  // Delete bar
+  const selCount = selectedIds.size;
+  const bar = document.getElementById('deleteBar');
+  bar.classList.toggle('show', selCount > 0);
+  if (selCount > 0) document.getElementById('deleteBarText').textContent =
+    `${selCount} home${selCount !== 1 ? 's' : ''} selected`;
 
-  // Active
-  const activeEl = document.getElementById('activeList');
-  if (active.length) {
-    activeEl.innerHTML = active.map((f, i) => fileCardHTML(f, i === 0 && active.length > 1 ? 'latest' : '')).join('');
+  // Select all state
+  const allChecked = page.length > 0 && page.every(h => selectedIds.has(h.HomeId));
+  const someChecked = page.some(h => selectedIds.has(h.HomeId));
+  const selectAll = document.getElementById('selectAll');
+  selectAll.checked = allChecked;
+  selectAll.indeterminate = !allChecked && someChecked;
+
+  // Rows
+  const tbody = document.getElementById('homesBody');
+  if (!total) {
+    tbody.innerHTML = `<tr><td colspan="7">
+      <div class="empty-state">
+        <div class="empty-icon">🏠</div>
+        <div class="empty-title">No homes yet</div>
+        <div class="empty-sub">Upload a BigQuery CSV export to populate the dashboard</div>
+      </div>
+    </td></tr>`;
   } else {
-    activeEl.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No active files</div><div class="empty-sub">Upload a JSON file to get started</div></div>`;
+    tbody.innerHTML = page.map(h => {
+      const leaseDate = h.LeaseStartOn
+        ? new Date(h.LeaseStartOn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '—';
+      const milestone = h.CurrentMilestone
+        ? h.CurrentMilestone.replace(/([A-Z])/g, ' $1').trim()
+        : '—';
+      return `<tr class="${selectedIds.has(h.HomeId) ? 'selected' : ''}">
+        <td><input type="checkbox" class="cb" ${selectedIds.has(h.HomeId) ? 'checked' : ''} onchange="toggleSelect(${h.HomeId})"></td>
+        <td><span class="home-address">${h.Address || '—'}</span></td>
+        <td style="font-size:11px;color:var(--muted)">${h.Region || '—'}</td>
+        <td style="font-size:11px;color:var(--muted)">${h.MoveInSpecialist || '—'}</td>
+        <td style="font-size:11px;color:var(--muted);white-space:nowrap">${leaseDate}</td>
+        <td style="font-size:11px;color:var(--muted)">${milestone}</td>
+        <td>${h.AdminLink ? `<a href="${h.AdminLink}" target="_blank" class="admin-link">Open ↗</a>` : ''}</td>
+      </tr>`;
+    }).join('');
   }
 
-  // Inactive
-  const inactiveSection = document.getElementById('inactiveSection');
-  const inactiveEl = document.getElementById('inactiveList');
-  if (inactive.length) {
-    inactiveSection.style.display = 'block';
-    inactiveEl.innerHTML = inactive.map(f => fileCardHTML(f, '')).join('');
-  } else {
-    inactiveSection.style.display = 'none';
+  // Pagination
+  const pag = document.getElementById('pagination');
+  if (total === 0) { pag.style.display = 'none'; return; }
+  pag.style.display = 'flex';
+  document.getElementById('pageInfo').textContent = `Showing ${start + 1}–${end} of ${total}`;
+
+  let html = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>←</button>`;
+  const range = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) range.push(i);
+    else if (range[range.length - 1] !== '…') range.push('…');
   }
+  range.forEach(p => {
+    if (p === '…') html += `<span class="page-btn" style="cursor:default;pointer-events:none">…</span>`;
+    else html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`;
+  });
+  html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>`;
+  document.getElementById('pageBtns').innerHTML = html;
 }
 
-function fileCardHTML(f, tag) {
-  const d = new Date(f.generated_at);
-  const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  const homes = f.homes || [];
-  const ready     = homes.filter(h => h.ready_for_tami && !h.signed_off).length;
-  const postponed = homes.filter(h => h.postponed).length;
-  const signed    = homes.filter(h => h.signed_off).length;
-  const isExpanded = expandedFiles.has(f.id);
-
-  const badges = [
-    f.active ? `<span class="file-badge badge-active">● Active</span>` : `<span class="file-badge badge-inactive">● Hidden</span>`,
-    tag === 'latest' ? `<span class="file-badge badge-latest">★ Latest</span>` : ''
-  ].join('');
-
-  return `<div class="file-card ${f.active ? 'active' : 'inactive'}" id="card-${f.id}">
-    <div class="file-header">
-      <div class="file-dot ${f.active ? 'on' : 'off'}"></div>
-      <div class="file-info">
-        <div class="file-name">${dateStr} at ${timeStr} ${badges}</div>
-        <div class="file-meta">
-          <span>${homes.length} home${homes.length !== 1 ? 's' : ''}</span>
-          ${ready     ? `<span>✅ ${ready} ready</span>` : ''}
-          ${postponed ? `<span>⚠️ ${postponed} postponed</span>` : ''}
-          ${signed    ? `<span>🏁 ${signed} signed off</span>` : ''}
-        </div>
-      </div>
-      <div class="file-actions">
-        <button class="expand-btn" onclick="togglePreview('${f.id}')" id="expbtn-${f.id}">
-          ${isExpanded ? '▲ Hide' : '▼ Preview'}
-        </button>
-        <button class="icon-btn" onclick="toggleActive('${f.id}', ${f.active})" title="${f.active ? 'Hide from dashboard' : 'Show on dashboard'}">
-          ${f.active ? '👁' : '👁‍🗨'}
-        </button>
-        <button class="icon-btn danger" onclick="openDelete('${f.id}', ${homes.length})" title="Delete permanently">🗑</button>
-      </div>
-    </div>
-    <div class="file-preview ${isExpanded ? 'open' : ''}" id="preview-${f.id}">
-      ${previewHTML(homes)}
-    </div>
-  </div>`;
+// ── Selection ─────────────────────────────────────────────────────────────────
+function toggleSelect(homeId) {
+  selectedIds.has(homeId) ? selectedIds.delete(homeId) : selectedIds.add(homeId);
+  renderTable();
 }
 
-function previewHTML(homes) {
-  if (!homes.length) return '<div class="preview-more">No homes in this file.</div>';
-  const shown = homes.slice(0, 12);
-  const rest  = homes.length - shown.length;
-  return `<div class="preview-grid">
-    ${shown.map(h => {
-      const flags = [];
-      if (h.ready_for_tami) flags.push('<span class="ps ps-ready">Ready</span>');
-      if (h.postponed)      flags.push('<span class="ps ps-postponed">Postponed</span>');
-      if (h.grant_access)   flags.push('<span class="ps ps-grant">Grant Access</span>');
-      if (h.signed_off)     flags.push('<span class="ps ps-signed">Signed Off</span>');
-      return `<div class="preview-home">
-        <div class="preview-addr">${h.address || '—'}</div>
-        <div class="preview-meta">${h.specialist || '—'} · ${h.move_in_date || 'No date'}</div>
-        ${flags.length ? `<div class="preview-status">${flags.join('')}</div>` : ''}
-      </div>`;
-    }).join('')}
-  </div>${rest > 0 ? `<div class="preview-more">+ ${rest} more homes not shown</div>` : ''}`;
+function toggleSelectAll() {
+  const start = (currentPage - 1) * pageSize;
+  const page = allHomes.slice(start, Math.min(start + pageSize, allHomes.length));
+  const allChecked = page.every(h => selectedIds.has(h.HomeId));
+  page.forEach(h => allChecked ? selectedIds.delete(h.HomeId) : selectedIds.add(h.HomeId));
+  renderTable();
 }
 
-// ── File operations ───────────────────────────────────────────────────────────
-async function handleUpload(input) {
-  const fileList = Array.from(input.files || []);
-  if (!fileList.length) return;
+function goPage(p) {
+  const totalPages = Math.ceil(allHomes.length / pageSize);
+  if (p < 1 || p > totalPages) return;
+  currentPage = p;
+  renderTable();
+}
 
+function changePageSize() {
+  pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+  currentPage = 1;
+  renderTable();
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+function confirmDelete() {
+  if (!selectedIds.size) return;
+  document.getElementById('modalBody').innerHTML =
+    `You're about to permanently delete <strong>${selectedIds.size} home${selectedIds.size !== 1 ? 's' : ''}</strong> and all their associated repair data.<br><br>This cannot be undone.`;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+async function executeDelete() {
+  closeModal();
+  const ids = [...selectedIds];
+  const { error } = await sb.from('homes').delete().in('"HomeId"', ids);
+  if (error) { showToast('Delete failed: ' + error.message, 'error'); return; }
+  showToast(`✅ ${ids.length} home${ids.length !== 1 ? 's' : ''} deleted`, 'success');
+  await loadHomes();
+}
+
+// ── CSV Upload ────────────────────────────────────────────────────────────────
+function setupDragDrop() {
+  const zone = document.getElementById('dropZone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+}
+
+async function handleFile(file) {
+  if (!file?.name.endsWith('.csv')) { showToast('Please upload a CSV file', 'error'); return; }
+
+  const text = await file.text();
+  const rows = parseCSV(text);
+  if (!rows.length) { showToast('No data found in CSV', 'error'); return; }
+
+  const progress = document.getElementById('uploadProgress');
+  const fill = document.getElementById('progressFill');
+  const label = document.getElementById('progressLabel');
+  progress.style.display = 'block';
+  fill.style.width = '0%';
+
+  const BATCH = 100;
   let uploaded = 0;
-  let failed = 0;
 
-  for (const file of fileList) {
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      const homes = data.homes || [];
-      if (!homes.length) throw new Error('No homes array found');
-
-      const { error } = await sb.from('belong_files').insert({
-        generated_at: data.generated_at || new Date().toISOString(),
-        homes,
-        active: true
-      });
-      if (error) throw error;
-      uploaded++;
-    } catch (e) {
-      console.error('Upload failed for', file.name, e);
-      failed++;
-    }
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    const { error } = await sb.from('homes').upsert(batch, { onConflict: '"HomeId"' });
+    if (error) { showToast('Upload error: ' + error.message, 'error'); break; }
+    uploaded += batch.length;
+    const pct = Math.round((uploaded / rows.length) * 100);
+    fill.style.width = pct + '%';
+    label.textContent = `Uploading… ${uploaded} / ${rows.length} homes`;
   }
 
-  if (uploaded) toast(`✅ ${uploaded} file${uploaded > 1 ? 's' : ''} uploaded`);
-  if (failed)   toast(`❌ ${failed} file${failed > 1 ? 's' : ''} failed`, true);
-
-  input.value = '';
-  await loadFiles();
-  renderFiles();
+  fill.style.width = '100%';
+  label.textContent = `✅ ${uploaded} homes synced`;
+  setTimeout(() => { progress.style.display = 'none'; fill.style.width = '0%'; }, 3000);
+  showToast(`✅ ${uploaded} homes uploaded`, 'success');
+  await loadHomes();
 }
 
-async function toggleActive(id, current) {
-  const { error } = await sb.from('belong_files').update({ active: !current }).eq('id', id);
-  if (error) { toast('❌ ' + error.message, true); return; }
-  toast(current ? '👁 Hidden from dashboard' : '✅ Now active on dashboard');
-  await loadFiles();
-  renderFiles();
+// Integer columns for type coercion
+const INT_COLS = new Set(['HomeId','LeaseId','ResidentId','MoveInSpecialistId','ConciergeId',
+  'ImprovementsSpecialistId','HasHoa','HoaIsNotified','HadQAInspection','QAInspectionCount',
+  'UnfinishedImprovements','UnfinishedImprovementsCount','IsSatisfied','CSATResponseCount',
+  'NewProServices','NewProServicesCount','BalancesUnpaid','DepositUnpaid','RentUnpaid',
+  'HasDeposit','HasRent','IsPerfectMoveIn','IsPerfectMoveInStrict','EnrolledInAutoPay']);
+
+const FLOAT_COLS = new Set(['DepositAmount','RentAmount','PaidRent','ReceivedRent',
+  'ProcessingReceiveRent','AvgRating']);
+
+function parseCSV(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i]);
+    if (values.length < 2) continue;
+    const row = {};
+    headers.forEach((h, idx) => {
+      const val = values[idx] ?? '';
+      if (val === '') row[h] = null;
+      else if (INT_COLS.has(h)) row[h] = parseInt(val, 10);
+      else if (FLOAT_COLS.has(h)) row[h] = parseFloat(val);
+      else row[h] = val;
+    });
+    row['last_synced_at'] = new Date().toISOString();
+    rows.push(row);
+  }
+  return rows;
 }
 
-function openDelete(id, count) {
-  pendingDeleteId = id;
-  document.getElementById('deleteMsg').textContent =
-    `This will permanently remove the file (${count} home${count !== 1 ? 's' : ''}) from Supabase. This cannot be undone.`;
-  document.getElementById('deleteOverlay').classList.add('show');
-}
-
-function closeDelete() {
-  pendingDeleteId = null;
-  document.getElementById('deleteOverlay').classList.remove('show');
-}
-
-async function confirmDelete() {
-  if (!pendingDeleteId) return;
-  const { error } = await sb.from('belong_files').delete().eq('id', pendingDeleteId);
-  closeDelete();
-  if (error) { toast('❌ ' + error.message, true); return; }
-  toast('🗑 File deleted');
-  await loadFiles();
-  renderFiles();
-}
-
-function togglePreview(id) {
-  if (expandedFiles.has(id)) expandedFiles.delete(id);
-  else expandedFiles.add(id);
-  const preview = document.getElementById(`preview-${id}`);
-  const btn     = document.getElementById(`expbtn-${id}`);
-  if (preview) preview.classList.toggle('open', expandedFiles.has(id));
-  if (btn) btn.textContent = expandedFiles.has(id) ? '▲ Hide' : '▼ Preview';
-}
-
-// ── Drag & drop ───────────────────────────────────────────────────────────────
-function onDragOver(e)  { e.preventDefault(); document.getElementById('uploadZone').classList.add('drag-over'); }
-function onDragLeave(e) { document.getElementById('uploadZone').classList.remove('drag-over'); }
-function onDrop(e) {
-  e.preventDefault();
-  document.getElementById('uploadZone').classList.remove('drag-over');
-  const fakeInput = { files: e.dataTransfer.files, value: '' };
-  handleUpload(fakeInput);
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '', inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) { result.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  result.push(cur.trim());
+  return result;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
-function toast(msg, isErr = false) {
+function showToast(msg, type = '') {
   const el = document.getElementById('toast');
   el.textContent = msg;
-  el.style.background = isErr ? 'var(--red)' : 'var(--text)';
-  el.className = 'toast show';
-  setTimeout(() => el.className = 'toast', 3000);
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  setTimeout(() => el.className = 'toast', 3500);
 }
 </script>
 </body>
