@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Manager — Belong</title>
+<link rel="icon" href="https://belonghome.com/favicon.ico">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F4F7FA; --surface: #fff; --surface2: #F0F4F8; --surface3: #E8EDF2;
+  --border: #E2E8F0; --border2: #CBD5E0;
+  --text: #1A2B3C; --muted: #5A6B7A; --faint: #94A3B8;
+  --navy: #325E77; --navy-dim: rgba(50,94,119,0.08); --navy-border: rgba(50,94,119,0.20);
+  --green: #1DB87A; --green-bright: #3EE4A9; --green-dim: rgba(62,228,169,0.12); --green-border: rgba(30,184,122,0.25);
+  --amber: #D97706; --amber-dim: rgba(217,119,6,0.10); --amber-border: rgba(217,119,6,0.22);
+  --red: #DC2626; --red-dim: rgba(220,38,38,0.08); --red-border: rgba(220,38,38,0.20);
+  --r: 10px; --rsm: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.07);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Montserrat', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; }
+
+/* ── Header ── */
+header { display: flex; align-items: center; justify-content: space-between; padding: 0 28px; height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); box-shadow: var(--shadow); position: sticky; top: 0; z-index: 50; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-sep { color: var(--faint); margin: 0 4px; font-size: 14px; }
+.logo-sub { font-size: 12px; font-weight: 600; color: var(--navy); }
+.admin-badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border); margin-left: 4px; text-transform: uppercase; letter-spacing: .06em; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.btn { font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; border-radius: var(--rsm); padding: 7px 14px; cursor: pointer; transition: all .15s; border: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.btn-ghost { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--surface3); color: var(--text); }
+.btn-primary { background: var(--navy); color: #fff; }
+.btn-primary:hover { background: #264d61; box-shadow: 0 0 0 3px var(--navy-dim); }
+.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.btn-danger:hover { background: var(--red); color: #fff; }
+.btn-upload { position: relative; overflow: hidden; }
+.btn-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; }
+
+/* ── Layout ── */
+.page { max-width: 900px; margin: 0 auto; padding: 32px 24px 80px; }
+.page-header { margin-bottom: 28px; }
+.page-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.page-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
+
+/* ── Upload zone ── */
+.upload-zone {
+  border: 2px dashed var(--border2);
+  border-radius: var(--r);
+  padding: 36px 24px;
+  text-align: center;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all .2s;
+  margin-bottom: 28px;
+  position: relative;
+  overflow: hidden;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--navy);
+  background: var(--navy-dim);
+}
+.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-icon { font-size: 28px; margin-bottom: 10px; }
+.upload-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.upload-sub { font-size: 11px; color: var(--faint); font-weight: 500; }
+.upload-hint { font-size: 10px; color: var(--faint); margin-top: 10px; font-style: italic; }
+
+/* ── Stats row ── */
+.stats-row { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+.mini-stat { flex: 1; min-width: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--rsm); padding: 14px 16px; box-shadow: var(--shadow); }
+.mini-stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin-bottom: 4px; }
+.mini-stat-value { font-size: 24px; font-weight: 300; color: var(--text); }
+.mini-stat-value.green { color: var(--green); }
+.mini-stat-value.amber { color: var(--amber); }
+.mini-stat-value.navy { color: var(--navy); }
+
+/* ── Section title ── */
+.section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--faint); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ── File list ── */
+.file-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+.file-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: box-shadow .15s;
+}
+.file-card:hover { box-shadow: var(--shadow-md); }
+.file-card.active { border-left: 3px solid var(--green); }
+.file-card.inactive { border-left: 3px solid var(--border2); opacity: .75; }
+
+.file-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  cursor: pointer;
+}
+.file-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.file-dot.on  { background: var(--green); }
+.file-dot.off { background: var(--faint); }
+
+.file-info { flex: 1; min-width: 0; }
+.file-name { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.file-meta { font-size: 10px; font-weight: 500; color: var(--faint); display: flex; gap: 12px; flex-wrap: wrap; }
+.file-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 700; }
+.badge-active   { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+.badge-inactive { background: var(--surface2); color: var(--faint); border: 1px solid var(--border); }
+.badge-latest   { background: var(--navy-dim); color: var(--navy); border: 1px solid var(--navy-border); }
+
+.file-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.icon-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 13px; transition: all .12s; color: var(--faint); }
+.icon-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+.icon-btn.danger:hover { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
+.expand-btn { font-family: 'Montserrat', sans-serif; font-size: 10px; font-weight: 600; color: var(--faint); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all .12s; }
+.expand-btn:hover { background: var(--surface2); color: var(--navy); }
+
+/* ── File preview ── */
+.file-preview { display: none; border-top: 1px solid var(--border); padding: 14px 18px; background: var(--surface2); }
+.file-preview.open { display: block; }
+.preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.preview-home { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rsm); padding: 10px 12px; }
+.preview-addr { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 3px; line-height: 1.3; }
+.preview-meta { font-size: 10px; color: var(--faint); font-weight: 500; }
+.preview-status { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.ps { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+.ps-ready    { background: var(--green-dim); color: var(--green); }
+.ps-postponed{ background: var(--red-dim); color: var(--red); }
+.ps-grant    { background: rgba(37,99,235,0.08); color: #2563EB; }
+.ps-signed   { background: var(--green-dim); color: var(--green); opacity: .6; }
+.preview-more { font-size: 11px; color: var(--faint); font-style: italic; padding: 8px 0; text-align: center; }
+
+/* ── Empty state ── */
+.empty-state { text-align: center; padding: 48px 24px; color: var(--faint); }
+.empty-icon  { font-size: 36px; margin-bottom: 12px; }
+.empty-title { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.empty-sub   { font-size: 12px; font-weight: 400; }
+
+/* ── Toast ── */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); border-radius: var(--rsm); padding: 10px 20px; font-size: 12px; font-weight: 600; color: #fff; z-index: 200; opacity: 0; transition: opacity .2s; pointer-events: none; box-shadow: var(--shadow-md); white-space: nowrap; }
+.toast.show { opacity: 1; }
+
+/* ── Confirm dialog ── */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100; align-items: center; justify-content: center; }
+.overlay.show { display: flex; }
+.dialog { background: var(--surface); border-radius: var(--r); padding: 28px; max-width: 360px; width: 90%; box-shadow: var(--shadow-md); }
+.dialog-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.dialog-body  { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; font-size: 10px; font-weight: 500; color: var(--faint); }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="logo">
+    <img src="https://belonghome.imgix.net/logos/belong_logo_web_white.svg" alt="Belong" height="20"
+         style="filter:invert(1) sepia(1) saturate(0) brightness(0.25);"
+         onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'belong',style:'font-size:20px;font-weight:700;color:#1A2B3C'}))">
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Data Manager</span>
+    <span class="admin-badge">Admin</span>
+  </a>
+  <div class="header-right">
+    <a href="/" class="btn btn-ghost" style="text-decoration:none;">← Dashboard</a>
+    <label class="btn btn-primary btn-upload">
+      ↑ Upload JSON
+      <input type="file" accept=".json" multiple onchange="handleUpload(this)">
+    </label>
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;">
+      <img id="userAvatar" src="" alt="" style="display:none;width:22px;height:22px;border-radius:50%;object-fit:cover;">
+      <span id="userName" style="font-size:11px;font-weight:600;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button onclick="signOut()" style="font-family:'Montserrat',sans-serif;font-size:10px;font-weight:600;color:var(--faint);background:none;border:none;cursor:pointer;" title="Sign out">↩</button>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">Data Manager</div>
+    <div class="page-sub">Upload, review, and manage JSON data files. Only active files are shown on the dashboard.</div>
+  </div>
+
+  <!-- Upload zone -->
+  <div class="upload-zone" id="uploadZone"
+       ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+    <input type="file" accept=".json" multiple onchange="handleUpload(this)">
+    <div class="upload-icon">📂</div>
+    <div class="upload-title">Drop JSON files here or click to browse</div>
+    <div class="upload-sub">Upload one or multiple files at once</div>
+    <div class="upload-hint">Expected format: <code>{ "generated_at": "...", "homes": [...] }</code></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="mini-stat">
+      <div class="mini-stat-label">Total Files</div>
+      <div class="mini-stat-value navy" id="statTotal">—</div>
+    </div>
+    <div class="mini-stat">
+      <div class="mini-stat-label">Active</div>
+      <div class="mini-stat-value green" id="statActive">—</div>
+    </div>
+    <div class="mini-stat">
+      <div class="mini-stat-label">Hidden</div>
+      <div class="mini-stat-value" id="statHidden">—</div>
+    </div>
+    <div class="mini-stat">
+      <div class="mini-stat-label">Homes (latest)</div>
+      <div class="mini-stat-value navy" id="statHomes">—</div>
+    </div>
+  </div>
+
+  <!-- Active files -->
+  <div class="section-title">Active Files</div>
+  <div class="file-list" id="activeList">
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-title">No active files</div>
+      <div class="empty-sub">Upload a JSON file to get started</div>
+    </div>
+  </div>
+
+  <!-- Inactive files -->
+  <div id="inactiveSection" style="display:none">
+    <div class="section-title">Hidden Files</div>
+    <div class="file-list" id="inactiveList"></div>
+  </div>
+</div>
+
+<footer>
+  <span id="footLeft">Data Manager · Admin only</span>
+  <span id="footRight">—</span>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<!-- Delete confirm dialog -->
+<div class="overlay" id="deleteOverlay">
+  <div class="dialog">
+    <div class="dialog-title">Delete this file?</div>
+    <div class="dialog-body" id="deleteMsg">This will permanently remove the file and all its data from Supabase. This cannot be undone.</div>
+    <div class="dialog-actions">
+      <button class="btn btn-ghost" onclick="closeDelete()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+let files = [];
+let pendingDeleteId = null;
+let expandedFiles = new Set();
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  // Admin-only auth guard
+  const session = await requireAuth(true);
+  if (!session) return;
+
+  // Show user info
+  const user = session.user;
+  document.getElementById('userName').textContent = user.user_metadata?.full_name || user.email;
+  const av = document.getElementById('userAvatar');
+  if (user.user_metadata?.avatar_url) { av.src = user.user_metadata.avatar_url; av.style.display = 'block'; }
+
+  await loadFiles();
+  renderFiles();
+})();
+
+// ── Load from Supabase ────────────────────────────────────────────────────────
+async function loadFiles() {
+  const { data, error } = await sb
+    .from('belong_files')
+    .select('*')
+    .order('generated_at', { ascending: false });
+
+  if (error) { toast('❌ Could not load files: ' + error.message, true); return; }
+  files = data || [];
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderFiles() {
+  const active   = files.filter(f => f.active);
+  const inactive = files.filter(f => !f.active);
+  const latest   = active[0];
+
+  // Stats
+  document.getElementById('statTotal').textContent  = files.length;
+  document.getElementById('statActive').textContent = active.length;
+  document.getElementById('statHidden').textContent = inactive.length;
+  document.getElementById('statHomes').textContent  = latest ? (latest.homes || []).length : '—';
+
+  document.getElementById('footRight').textContent = `Last updated ${new Date().toLocaleTimeString()}`;
+
+  // Active
+  const activeEl = document.getElementById('activeList');
+  if (active.length) {
+    activeEl.innerHTML = active.map((f, i) => fileCardHTML(f, i === 0 && active.length > 1 ? 'latest' : '')).join('');
+  } else {
+    activeEl.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No active files</div><div class="empty-sub">Upload a JSON file to get started</div></div>`;
+  }
+
+  // Inactive
+  const inactiveSection = document.getElementById('inactiveSection');
+  const inactiveEl = document.getElementById('inactiveList');
+  if (inactive.length) {
+    inactiveSection.style.display = 'block';
+    inactiveEl.innerHTML = inactive.map(f => fileCardHTML(f, '')).join('');
+  } else {
+    inactiveSection.style.display = 'none';
+  }
+}
+
+function fileCardHTML(f, tag) {
+  const d = new Date(f.generated_at);
+  const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const homes = f.homes || [];
+  const ready     = homes.filter(h => h.ready_for_tami && !h.signed_off).length;
+  const postponed = homes.filter(h => h.postponed).length;
+  const signed    = homes.filter(h => h.signed_off).length;
+  const isExpanded = expandedFiles.has(f.id);
+
+  const badges = [
+    f.active ? `<span class="file-badge badge-active">● Active</span>` : `<span class="file-badge badge-inactive">● Hidden</span>`,
+    tag === 'latest' ? `<span class="file-badge badge-latest">★ Latest</span>` : ''
+  ].join('');
+
+  return `<div class="file-card ${f.active ? 'active' : 'inactive'}" id="card-${f.id}">
+    <div class="file-header">
+      <div class="file-dot ${f.active ? 'on' : 'off'}"></div>
+      <div class="file-info">
+        <div class="file-name">${dateStr} at ${timeStr} ${badges}</div>
+        <div class="file-meta">
+          <span>${homes.length} home${homes.length !== 1 ? 's' : ''}</span>
+          ${ready     ? `<span>✅ ${ready} ready</span>` : ''}
+          ${postponed ? `<span>⚠️ ${postponed} postponed</span>` : ''}
+          ${signed    ? `<span>🏁 ${signed} signed off</span>` : ''}
+        </div>
+      </div>
+      <div class="file-actions">
+        <button class="expand-btn" onclick="togglePreview('${f.id}')" id="expbtn-${f.id}">
+          ${isExpanded ? '▲ Hide' : '▼ Preview'}
+        </button>
+        <button class="icon-btn" onclick="toggleActive('${f.id}', ${f.active})" title="${f.active ? 'Hide from dashboard' : 'Show on dashboard'}">
+          ${f.active ? '👁' : '👁‍🗨'}
+        </button>
+        <button class="icon-btn danger" onclick="openDelete('${f.id}', ${homes.length})" title="Delete permanently">🗑</button>
+      </div>
+    </div>
+    <div class="file-preview ${isExpanded ? 'open' : ''}" id="preview-${f.id}">
+      ${previewHTML(homes)}
+    </div>
+  </div>`;
+}
+
+function previewHTML(homes) {
+  if (!homes.length) return '<div class="preview-more">No homes in this file.</div>';
+  const shown = homes.slice(0, 12);
+  const rest  = homes.length - shown.length;
+  return `<div class="preview-grid">
+    ${shown.map(h => {
+      const flags = [];
+      if (h.ready_for_tami) flags.push('<span class="ps ps-ready">Ready</span>');
+      if (h.postponed)      flags.push('<span class="ps ps-postponed">Postponed</span>');
+      if (h.grant_access)   flags.push('<span class="ps ps-grant">Grant Access</span>');
+      if (h.signed_off)     flags.push('<span class="ps ps-signed">Signed Off</span>');
+      return `<div class="preview-home">
+        <div class="preview-addr">${h.address || '—'}</div>
+        <div class="preview-meta">${h.specialist || '—'} · ${h.move_in_date || 'No date'}</div>
+        ${flags.length ? `<div class="preview-status">${flags.join('')}</div>` : ''}
+      </div>`;
+    }).join('')}
+  </div>${rest > 0 ? `<div class="preview-more">+ ${rest} more homes not shown</div>` : ''}`;
+}
+
+// ── File operations ───────────────────────────────────────────────────────────
+async function handleUpload(input) {
+  const fileList = Array.from(input.files || []);
+  if (!fileList.length) return;
+
+  let uploaded = 0;
+  let failed = 0;
+
+  for (const file of fileList) {
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const homes = data.homes || [];
+      if (!homes.length) throw new Error('No homes array found');
+
+      const { error } = await sb.from('belong_files').insert({
+        generated_at: data.generated_at || new Date().toISOString(),
+        homes,
+        active: true
+      });
+      if (error) throw error;
+      uploaded++;
+    } catch (e) {
+      console.error('Upload failed for', file.name, e);
+      failed++;
+    }
+  }
+
+  if (uploaded) toast(`✅ ${uploaded} file${uploaded > 1 ? 's' : ''} uploaded`);
+  if (failed)   toast(`❌ ${failed} file${failed > 1 ? 's' : ''} failed`, true);
+
+  input.value = '';
+  await loadFiles();
+  renderFiles();
+}
+
+async function toggleActive(id, current) {
+  const { error } = await sb.from('belong_files').update({ active: !current }).eq('id', id);
+  if (error) { toast('❌ ' + error.message, true); return; }
+  toast(current ? '👁 Hidden from dashboard' : '✅ Now active on dashboard');
+  await loadFiles();
+  renderFiles();
+}
+
+function openDelete(id, count) {
+  pendingDeleteId = id;
+  document.getElementById('deleteMsg').textContent =
+    `This will permanently remove the file (${count} home${count !== 1 ? 's' : ''}) from Supabase. This cannot be undone.`;
+  document.getElementById('deleteOverlay').classList.add('show');
+}
+
+function closeDelete() {
+  pendingDeleteId = null;
+  document.getElementById('deleteOverlay').classList.remove('show');
+}
+
+async function confirmDelete() {
+  if (!pendingDeleteId) return;
+  const { error } = await sb.from('belong_files').delete().eq('id', pendingDeleteId);
+  closeDelete();
+  if (error) { toast('❌ ' + error.message, true); return; }
+  toast('🗑 File deleted');
+  await loadFiles();
+  renderFiles();
+}
+
+function togglePreview(id) {
+  if (expandedFiles.has(id)) expandedFiles.delete(id);
+  else expandedFiles.add(id);
+  const preview = document.getElementById(`preview-${id}`);
+  const btn     = document.getElementById(`expbtn-${id}`);
+  if (preview) preview.classList.toggle('open', expandedFiles.has(id));
+  if (btn) btn.textContent = expandedFiles.has(id) ? '▲ Hide' : '▼ Preview';
+}
+
+// ── Drag & drop ───────────────────────────────────────────────────────────────
+function onDragOver(e)  { e.preventDefault(); document.getElementById('uploadZone').classList.add('drag-over'); }
+function onDragLeave(e) { document.getElementById('uploadZone').classList.remove('drag-over'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag-over');
+  const fakeInput = { files: e.dataTransfer.files, value: '' };
+  handleUpload(fakeInput);
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isErr ? 'var(--red)' : 'var(--text)';
+  el.className = 'toast show';
+  setTimeout(() => el.className = 'toast', 3000);
+}
+</script>
+</body>
+</html>

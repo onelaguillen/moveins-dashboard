@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signing in… — Belong</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Montserrat', sans-serif;
+  background: #F4F7FA;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 40px 48px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+  max-width: 360px;
+  width: 100%;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid #E2E8F0;
+  border-top-color: #1DB87A;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  margin: 0 auto 20px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.title { font-size: 15px; font-weight: 600; color: #1A2B3C; margin-bottom: 6px; }
+.sub   { font-size: 12px; font-weight: 400; color: #94A3B8; }
+.error-state { display: none; }
+.error-icon { font-size: 32px; margin-bottom: 14px; }
+.error-title { font-size: 15px; font-weight: 600; color: #DC2626; margin-bottom: 8px; }
+.error-msg   { font-size: 12px; color: #64748B; margin-bottom: 20px; line-height: 1.6; }
+.back-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #325E77;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Montserrat', sans-serif;
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="loadingState">
+    <div class="spinner"></div>
+    <div class="title">Signing you in…</div>
+    <div class="sub">Just a moment</div>
+  </div>
+  <div id="errorState" class="error-state">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title">Access Denied</div>
+    <div class="error-msg" id="errorMsg">Only @belonghome.com accounts are allowed.</div>
+    <a href="/login" class="back-btn">← Back to Sign In</a>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+(async () => {
+  try {
+    // Supabase automatically handles the OAuth tokens in the URL
+    const { data: { session }, error } = await sb.auth.getSession();
+
+    if (error) throw error;
+
+    if (!session) {
+      // Session not ready yet — wait for auth state change
+      await new Promise((resolve, reject) => {
+        const { data: { subscription } } = sb.auth.onAuthStateChange((event, s) => {
+          subscription.unsubscribe();
+          if (s) resolve(s);
+          else reject(new Error('No session'));
+        });
+        setTimeout(() => reject(new Error('Timeout')), 10000);
+      });
+    }
+
+    const { data: { session: finalSession } } = await sb.auth.getSession();
+    const email = finalSession?.user?.email || '';
+
+    if (!email.endsWith('@belonghome.com')) {
+      await sb.auth.signOut();
+      showError(`This dashboard is restricted to @belonghome.com accounts. You signed in as <strong>${email}</strong>.`);
+      return;
+    }
+
+    // All good — redirect to dashboard
+    window.location.replace('/');
+
+  } catch (err) {
+    console.error('Callback error:', err);
+    showError('Something went wrong during sign-in. Please try again.');
+  }
+})();
+
+function showError(msg) {
+  document.getElementById('loadingState').style.display = 'none';
+  const errState = document.getElementById('errorState');
+  errState.style.display = 'block';
+  document.getElementById('errorMsg').innerHTML = msg;
+}
+</script>
+</body>
+</html>

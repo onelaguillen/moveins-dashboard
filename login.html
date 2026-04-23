@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — Belong</title>
+<link rel="icon" href="https://belonghome.com/favicon.ico">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Montserrat', sans-serif; background: #F4F7FA; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ── Layout ── */
+.page { flex: 1; display: flex; min-height: 100vh; }
+
+/* ── Left panel ── */
+.left {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 32px 40px;
+  position: relative;
+  z-index: 1;
+}
+.left-logo { margin-bottom: auto; }
+.left-logo img { height: 28px; }
+
+.left-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 0 32px;
+  max-width: 380px;
+}
+
+.welcome { font-size: 26px; font-weight: 700; color: #1A2B3C; line-height: 1.3; margin-bottom: 10px; }
+.welcome-sub { font-size: 13px; font-weight: 400; color: #64748B; line-height: 1.6; margin-bottom: 36px; }
+
+/* ── Error banner ── */
+.error-banner {
+  display: none;
+  background: rgba(220,38,38,0.07);
+  border: 1px solid rgba(220,38,38,0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #DC2626;
+  margin-bottom: 20px;
+}
+.error-banner.show { display: flex; align-items: center; gap: 8px; }
+
+/* ── Card ── */
+.card {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.09);
+  margin-bottom: 20px;
+}
+
+/* ── Google button ── */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 20px;
+  background: #1DB87A;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .18s;
+  position: relative;
+  overflow: hidden;
+}
+.google-btn:hover { background: #17a368; box-shadow: 0 4px 16px rgba(29,184,122,0.35); transform: translateY(-1px); }
+.google-btn:active { transform: translateY(0); }
+.google-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.google-btn svg { flex-shrink: 0; }
+
+.divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
+.divider-line { flex: 1; height: 1px; background: #E2E8F0; }
+.divider-text { font-size: 11px; font-weight: 500; color: #94A3B8; white-space: nowrap; }
+
+.notice {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748B;
+  line-height: 1.5;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.notice-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+
+.support-link {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: #325E77;
+  margin-top: 16px;
+}
+.support-link a { color: #325E77; text-decoration: none; font-weight: 600; }
+.support-link a:hover { text-decoration: underline; }
+
+.left-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  font-size: 10px;
+  font-weight: 400;
+  color: #94A3B8;
+  line-height: 1.6;
+  max-width: 380px;
+}
+
+/* ── Right panel ── */
+.right {
+  flex: 1;
+  background: linear-gradient(145deg, #1A3A4A 0%, #325E77 40%, #1e7a5e 100%);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 48px;
+}
+.right::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 70% 30%, rgba(62,228,169,0.15) 0%, transparent 60%),
+    radial-gradient(circle at 20% 80%, rgba(50,94,119,0.4) 0%, transparent 50%);
+}
+.right-pattern {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image:
+    repeating-linear-gradient(0deg, #fff 0px, #fff 1px, transparent 1px, transparent 40px),
+    repeating-linear-gradient(90deg, #fff 0px, #fff 1px, transparent 1px, transparent 40px);
+}
+
+.right-content { position: relative; z-index: 1; }
+.right-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(62,228,169,0.15);
+  border: 1px solid rgba(62,228,169,0.3);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #3EE4A9;
+  margin-bottom: 20px;
+}
+.right-heading {
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.25;
+  margin-bottom: 14px;
+  max-width: 420px;
+}
+.right-sub {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.65);
+  line-height: 1.7;
+  max-width: 400px;
+  margin-bottom: 32px;
+}
+.right-stats {
+  display: flex;
+  gap: 32px;
+}
+.right-stat { }
+.right-stat-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: #3EE4A9;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.right-stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+/* ── Loading overlay ── */
+.loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.85);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+}
+.loading-overlay.show { display: flex; }
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid #E2E8F0;
+  border-top-color: #1DB87A;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 13px; font-weight: 500; color: #64748B; }
+
+@media (max-width: 768px) {
+  .right { display: none; }
+  .left { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <!-- Left: login form -->
+  <div class="left">
+    <div class="left-logo">
+      <img src="https://belonghome.imgix.net/logos/belong_logo_web_white.svg"
+           alt="Belong"
+           style="filter: invert(1) sepia(1) saturate(0) brightness(0.25);"
+           onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'belong',style:'font-size:22px;font-weight:700;color:#1A2B3C;letter-spacing:-0.02em'}))">
+    </div>
+
+    <div class="left-body">
+      <h1 class="welcome">Hi there!<br>Welcome home.</h1>
+      <p class="welcome-sub">Sign in to access the Move-In Sign-Off Dashboard. Use your Belong Google account to continue.</p>
+
+      <div class="error-banner" id="errorBanner">
+        <span>⚠️</span>
+        <span id="errorText">Access restricted to @belonghome.com accounts.</span>
+      </div>
+
+      <div class="card">
+        <button class="google-btn" id="googleBtn" onclick="handleSignIn()">
+          <!-- Google icon -->
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff" opacity=".9"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff" opacity=".9"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff" opacity=".9"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" opacity=".9"/>
+          </svg>
+          Login With Google
+        </button>
+
+        <div class="divider">
+          <div class="divider-line"></div>
+          <span class="divider-text">Belong accounts only</span>
+          <div class="divider-line"></div>
+        </div>
+
+        <div class="notice">
+          <span class="notice-icon">🔒</span>
+          <span>Access is restricted to <strong>@belonghome.com</strong> email addresses. Sign in with your Belong Google account.</span>
+        </div>
+      </div>
+
+      <div class="support-link">
+        Can't log in? <a href="mailto:guillen.onela@belonghome.com">Request Support</a>
+      </div>
+    </div>
+
+    <div class="left-footer">
+      To create authentic belonging experiences for homeowners, residents, and the communities we serve.
+    </div>
+  </div>
+
+  <!-- Right: brand panel -->
+  <div class="right">
+    <div class="right-pattern"></div>
+    <div class="right-content">
+      <div class="right-badge">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19 26" fill="none" width="14" height="18">
+          <path fill="#3EE4A9" fill-rule="evenodd" d="M14.364 19.266c-.762 0-1.475.43-1.796 1.131q-.238.518-.616.944-1.017 1.14-2.602 1.14t-2.601-1.14a3.8 3.8 0 0 1-.616-.944 1.97 1.97 0 0 0-1.796-1.131c-1.533 0-2.466 1.696-1.678 3.029q.477.804 1.177 1.506Q6.03 26 9.35 25.999t5.515-2.198q.7-.702 1.176-1.506c.789-1.333-.145-3.03-1.677-3.03" clip-rule="evenodd"/>
+          <path fill="rgba(255,255,255,0.9)" fill-rule="evenodd" d="M18.427 8.186c-.15-.096-1.33-.802-1.799-1.017l-.58-1.403c.172-.465.503-1.766.561-1.992a.63.63 0 0 0-.169-.58l-.915-.91a.62.62 0 0 0-.58-.169c-.173.04-1.498.375-1.992.562l-1.404-.58c-.204-.45-.891-1.601-1.016-1.8a.62.62 0 0 0-.53-.297H8.716a.63.63 0 0 0-.53.292c-.095.15-.8 1.33-1.016 1.798l-1.403.581C5.3 2.498 4 2.167 3.774 2.11a.63.63 0 0 0-.58.168l-.91.915a.62.62 0 0 0-.169.58c.04.173.375 1.498.562 1.993l-.58 1.403c-.45.204-1.601.892-1.8 1.017a.62.62 0 0 0-.297.53V10c0 .215.11.415.292.53.15.096 1.33.802 1.798 1.017l.581 1.404c-.173.464-.504 1.765-.561 1.992v-.001c-.047.21.016.429.168.58l.91.91c.151.153.37.216.58.169.172-.04 1.497-.375 1.992-.562l1.404.58c.204.45.89 1.601 1.016 1.8v-.001a.62.62 0 0 0 .535.3h1.286c.215 0 .415-.11.53-.292.096-.15.802-1.33 1.017-1.799l1.404-.58c.464.172 1.765.503 1.992.561h-.001c.21.047.429-.017.58-.169l.91-.91a.62.62 0 0 0 .169-.58c-.04-.172-.375-1.497-.562-1.991l.58-1.404c.45-.204 1.601-.891 1.8-1.016h-.001a.62.62 0 0 0 .3-.535V8.715a.62.62 0 0 0-.292-.53m-9.049 5.238a4.085 4.085 0 1 1 .006-8.171 4.085 4.085 0 0 1-.006 8.171" clip-rule="evenodd"/>
+          <path fill="#FFAF00" fill-rule="evenodd" d="M11.87 9.358a2.511 2.511 0 1 1-5.022 0 2.511 2.511 0 0 1 5.022 0" clip-rule="evenodd"/>
+        </svg>
+        Move-In Sign-Off Dashboard
+      </div>
+      <h2 class="right-heading">Every home,<br>ready on time.</h2>
+      <p class="right-sub">Track move-in readiness across your entire portfolio. From repairs to payments — everything in one place.</p>
+      <div class="right-stats">
+        <div class="right-stat">
+          <div class="right-stat-num" id="statHomes">—</div>
+          <div class="right-stat-label">Active Homes</div>
+        </div>
+        <div class="right-stat">
+          <div class="right-stat-num" id="statReady">—</div>
+          <div class="right-stat-label">Ready to Sign Off</div>
+        </div>
+        <div class="right-stat">
+          <div class="right-stat-num" id="statSigned">—</div>
+          <div class="right-stat-label">Signed Off</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Signing you in…</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+(async () => {
+  // If already signed in, redirect to dashboard
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user.email.endsWith('@belonghome.com')) {
+    window.location.replace('/');
+    return;
+  }
+
+  // Check for error param
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('error') === 'domain') {
+    const banner = document.getElementById('errorBanner');
+    banner.classList.add('show');
+    document.getElementById('errorText').textContent =
+      'Access restricted to @belonghome.com accounts. Try signing in with your Belong email.';
+  }
+
+  // Load stats for the right panel (unauthenticated read — public data)
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/belong_files?active=eq.true&order=generated_at.desc&limit=1`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    const files = await res.json();
+    if (files.length) {
+      const homes = files[0].homes || [];
+      document.getElementById('statHomes').textContent  = homes.length;
+      document.getElementById('statReady').textContent  = homes.filter(h => h.ready_for_tami && !h.signed_off).length;
+      document.getElementById('statSigned').textContent = homes.filter(h => h.signed_off).length;
+    }
+  } catch (e) { /* stats are decorative, fail silently */ }
+})();
+
+async function handleSignIn() {
+  const btn = document.getElementById('googleBtn');
+  btn.disabled = true;
+  document.getElementById('loadingOverlay').classList.add('show');
+  await signInWithGoogle();
+}
+</script>
+</body>
+</html>
