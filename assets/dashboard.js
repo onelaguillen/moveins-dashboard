@@ -17,7 +17,8 @@ const filterState = {
   dateTo: '',
   dateChip: '',       // 'overdue' | 'this_week' | '30_days' | ''
   region: '',
-  spec: ''
+  spec: '',
+  leaseTypes: ['New', 'Turnover']   // default: both selected
 };
 
 // Row expansion state: Map<homeId, Set<'repairs'|'status'>>
@@ -46,7 +47,7 @@ async function loadData() {
     sb.from('homes').select(
       '"HomeId","Address","Region","ResidentName",' +
       '"MoveInSpecialist","Concierge","ImprovementsSpecialist",' +
-      '"LeaseStartOn","CurrentMilestone","MoveInReady","MoveInCompleted",' +
+      '"LeaseStartOn","LeaseType","CurrentMilestone","MoveInReady","MoveInCompleted",' +
       '"AdminLink",' +
       '"RentAmount","DepositAmount","PaymentStatus","BalanceDetail",' +
       '"UnfinishedImprovements","UnfinishedImprovementsCount",' +
@@ -166,6 +167,12 @@ function applyFilters() {
     if (filterState.region && r.Region !== filterState.region) return false;
     if (filterState.spec   && r.MoveInSpecialist !== filterState.spec) return false;
 
+    // Lease type filter (active chips). Empty array = nothing passes.
+    if (Array.isArray(filterState.leaseTypes)) {
+      if (filterState.leaseTypes.length === 0) return false;
+      if (!filterState.leaseTypes.includes(r.LeaseType)) return false;
+    }
+
     // Date range
     if (filterState.dateFrom || filterState.dateTo) {
       if (!r.LeaseStartOn) return false;
@@ -192,6 +199,7 @@ function clearFilters() {
   filterState.q = ''; filterState.statusCard = '';
   filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
   filterState.region = ''; filterState.spec = '';
+  filterState.leaseTypes = ['New', 'Turnover'];
   document.getElementById('fSearch').value = '';
   if (window._datePicker) window._datePicker.clear();
   document.getElementById('fRegion').value = '';
@@ -199,8 +207,26 @@ function clearFilters() {
   updateMetricCardsUI();
   updateDateClearUI();
   updateDateChipsUI();
+  updateLeaseTypeUI();
   persistFilters();
   applyFilters();
+}
+
+function toggleLeaseType(type) {
+  const set = new Set(filterState.leaseTypes || []);
+  set.has(type) ? set.delete(type) : set.add(type);
+  filterState.leaseTypes = [...set];
+  updateLeaseTypeUI();
+  persistFilters();
+  applyFilters();
+}
+
+function updateLeaseTypeUI() {
+  const set = new Set(filterState.leaseTypes || []);
+  ['New', 'Turnover'].forEach(t => {
+    const el = document.getElementById('lt_' + t);
+    if (el) el.classList.toggle('active', set.has(t));
+  });
 }
 
 function persistFilters() {
@@ -214,10 +240,12 @@ function restoreFilters() {
     Object.assign(filterState, {
       q: s.q || '', statusCard: s.statusCard || '',
       dateFrom: s.dateFrom || '', dateTo: s.dateTo || '', dateChip: s.dateChip || '',
-      region: s.region || '', spec: s.spec || ''
+      region: s.region || '', spec: s.spec || '',
+      leaseTypes: Array.isArray(s.leaseTypes) ? s.leaseTypes : ['New', 'Turnover']
     });
     if (s.pageSize) pageSize = parseInt(s.pageSize, 10) || 20;
     document.getElementById('fSearch').value = filterState.q;
+    updateLeaseTypeUI();
     const ps = document.getElementById('pageSizeSelect');
     if (ps) ps.value = String(pageSize);
   } catch {}
