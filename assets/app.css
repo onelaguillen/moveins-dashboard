@@ -3,6 +3,36 @@
    Used by: index.html, manage.html, ready.html
    ────────────────────────────────────────────────────────── */
 
+/* Lease type dropdown (dashboard filter) */
+.lt-dropdown { position: relative; display: inline-block; }
+.lt-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; min-width: 120px; text-align: left;
+}
+.lt-caret { font-size: 10px; color: var(--muted); margin-left: auto; }
+.lt-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20;
+  min-width: 180px; max-height: 260px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  padding: 6px;
+}
+.lt-menu label {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer;
+  font-size: 12px; color: var(--text);
+}
+.lt-menu label:hover { background: var(--surface2); }
+.lt-menu input[type="checkbox"] { margin: 0; cursor: pointer; }
+
+/* Small lease-type tag shown in dashboard rows */
+.lease-type-tag {
+  display: inline-block; margin-top: 2px; padding: 1px 6px;
+  font-size: 9px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase;
+  color: var(--muted); background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+
 /* Online users panel (manage page) */
 .online-card { padding: 14px 18px; }
 .online-header {

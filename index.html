@@ -50,7 +50,13 @@
         <button class="chip-btn" id="chip_30_days"   onclick="setDateChip('30_days')">30 Days</button>
       </div>
 
-      <div style="display:flex;gap:6px;flex-wrap:wrap" id="leaseTypeChips" title="Lease type"></div>
+      <div class="lt-dropdown" id="leaseTypeDropdown">
+        <button type="button" class="select-input lt-toggle" id="leaseTypeToggle" onclick="toggleLeaseTypeMenu(event)">
+          <span id="leaseTypeLabel">Lease type</span>
+          <span class="lt-caret">▾</span>
+        </button>
+        <div class="lt-menu" id="leaseTypeMenu" hidden></div>
+      </div>
 
       <select class="select-input" id="fRegion"><option value="">All regions</option></select>
       <select class="select-input" id="fSpecialist"><option value="">All specialists</option></select>

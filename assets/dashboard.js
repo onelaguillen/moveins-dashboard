@@ -223,25 +223,57 @@ function toggleLeaseType(type) {
 }
 
 function renderLeaseTypeChips() {
-  const host = document.getElementById('leaseTypeChips');
-  if (!host) return;
-  // Collect all distinct lease types from data, plus keep New/Turnover pinned first.
+  const menu = document.getElementById('leaseTypeMenu');
+  if (!menu) return;
+  // Known types from BigQuery: New, Turnover, Adopted, Renewal, Revised.
+  // Always show them; then append anything else found in the data.
+  const known = ['New', 'Turnover', 'Adopted', 'Renewal', 'Revised'];
   const present = [...new Set(allRows.map(r => r.LeaseType).filter(Boolean))];
   const pinned = ['New', 'Turnover'];
-  const rest = present.filter(t => !pinned.includes(t)).sort();
-  const all = [...pinned, ...rest];
-  host.innerHTML = all.map(t =>
-    `<button class="chip-btn" id="lt_${escapeAttr(t)}" onclick="toggleLeaseType('${escapeAttr(t)}')">${escapeHtml(t)}</button>`
-  ).join('');
+  const extras = [...new Set([...known.filter(t => !pinned.includes(t)), ...present.filter(t => !pinned.includes(t))])].sort();
+  const all = [...pinned, ...extras];
+  menu.innerHTML = all.map(t => `
+    <label>
+      <input type="checkbox" value="${escapeAttr(t)}" onchange="toggleLeaseType('${escapeAttr(t)}')">
+      <span>${escapeHtml(t)}</span>
+    </label>
+  `).join('');
   updateLeaseTypeUI();
+}
+
+function toggleLeaseTypeMenu(ev) {
+  if (ev) ev.stopPropagation();
+  const menu = document.getElementById('leaseTypeMenu');
+  if (!menu) return;
+  const isHidden = menu.hasAttribute('hidden');
+  if (isHidden) {
+    menu.removeAttribute('hidden');
+    document.addEventListener('click', closeLeaseTypeMenuOnClickOutside);
+  } else {
+    menu.setAttribute('hidden', '');
+    document.removeEventListener('click', closeLeaseTypeMenuOnClickOutside);
+  }
+}
+function closeLeaseTypeMenuOnClickOutside(ev) {
+  const dd = document.getElementById('leaseTypeDropdown');
+  if (!dd || dd.contains(ev.target)) return;
+  const menu = document.getElementById('leaseTypeMenu');
+  if (menu) menu.setAttribute('hidden', '');
+  document.removeEventListener('click', closeLeaseTypeMenuOnClickOutside);
 }
 
 function updateLeaseTypeUI() {
   const set = new Set(filterState.leaseTypes || []);
-  document.querySelectorAll('#leaseTypeChips .chip-btn').forEach(el => {
-    const t = el.id.replace(/^lt_/, '');
-    el.classList.toggle('active', set.has(t));
+  document.querySelectorAll('#leaseTypeMenu input[type="checkbox"]').forEach(cb => {
+    cb.checked = set.has(cb.value);
   });
+  const label = document.getElementById('leaseTypeLabel');
+  if (label) {
+    const arr = filterState.leaseTypes || [];
+    label.textContent = arr.length === 0
+      ? 'Lease type: none'
+      : `Lease type: ${arr.length <= 2 ? arr.join(', ') : arr.length + ' selected'}`;
+  }
 }
 
 function persistFilters() {
@@ -412,6 +444,7 @@ function rowHtml(r) {
     <tr class="${hasExpansion ? 'expanded' : ''}">
       <td>
         <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.Address || '—')}</a>
+        ${r.LeaseType ? `<span class="lease-type-tag">${escapeHtml(r.LeaseType)}</span>` : ''}
         ${r.MoveInSpecialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.MoveInSpecialist)}</div>` : ''}
       </td>
       <td style="font-size:12px">${escapeHtml(r.ResidentName || '—')}</td>
