@@ -494,10 +494,10 @@ function formatDateNumeric(d) {
   if (!d) return '—';
   const dt = new Date(d);
   if (isNaN(dt)) return '—';
-  const dd = String(dt.getUTCDate()).padStart(2, '0');
   const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
   const yy = dt.getUTCFullYear();
-  return `${dd}/${mm}/${yy}`;
+  return `${mm}/${dd}/${yy}`;
 }
 
 function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
