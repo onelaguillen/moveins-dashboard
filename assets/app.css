@@ -35,8 +35,20 @@
   display: inline-block; margin-left: 4px; cursor: pointer;
   font-size: 13px; line-height: 1;
   transform: translateY(-1px);
+  position: relative;
 }
 .fast-moveIn-flag:hover { filter: brightness(1.15); }
+.fast-moveIn-flag::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: #1a1a1a; color: #fff;
+  padding: 4px 8px; border-radius: 6px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity .12s ease;
+  z-index: 20;
+}
+.fast-moveIn-flag:hover::after { opacity: 1; }
 
 .pay-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
