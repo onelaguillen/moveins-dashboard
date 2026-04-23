@@ -1,13 +1,25 @@
 // ── Dashboard (/) page logic ─────────────────────────────────────────────────
-// Reads `homes` (BigQuery source of truth) joined with `home_repair_context`
-// (Claude's Slack analysis) and renders the main list.
+// Reads `homes` + `home_repair_context`, renders Belong-style dashboard with
+// clickable metric cards, date range filter, and per-row toggle panels.
 
-const FILTER_STORAGE_KEY = 'belong.dashboard.filters.v1';
+const FILTER_STORAGE_KEY = 'belong.dashboard.filters.v2';
+const URGENT_DAYS = 2;
 
-let allRows   = [];      // joined home + context records
+let allRows   = [];
 let filtered  = [];
 let currentPage = 1;
 let pageSize    = 20;
+
+const filterState = {
+  q: '',
+  statusCard: '',     // 'ready' | 'in_progress' | 'urgent' | 'grant_access' | 'postponed' | 'signed_off' | ''
+  dateFrom: '',
+  dateTo: '',
+  dateChip: '',       // 'overdue' | 'this_week' | '30_days' | ''
+  region: '',
+  spec: ''
+};
+
 // Row expansion state: Map<homeId, Set<'repairs'|'status'>>
 const expanded = new Map();
 
@@ -31,13 +43,14 @@ const expanded = new Map();
 async function loadData() {
   const [homesRes, ctxRes] = await Promise.all([
     sb.from('homes').select(
-      '"HomeId","Address","Region","MoveInSpecialist","Concierge","LeaseStartOn",' +
-      '"CurrentMilestone","CurrentMilestoneOn","MoveInReady","MoveInCompleted",' +
-      '"AdminLink","ResidentName","RentAmount","DepositAmount",' +
-      '"PaymentStatus","BalanceDetail",' +
+      '"HomeId","Address","Region","ResidentName",' +
+      '"MoveInSpecialist","Concierge","ImprovementsSpecialist",' +
+      '"LeaseStartOn","CurrentMilestone","MoveInReady","MoveInCompleted",' +
+      '"AdminLink",' +
+      '"RentAmount","DepositAmount","PaymentStatus","BalanceDetail",' +
       '"UnfinishedImprovements","UnfinishedImprovementsCount",' +
       '"UnfinishedGroupDetails","AllUnfinishedDetails",' +
-      '"HasHoa","HoaIsNotified","CSATStatus","AvgRating"'
+      '"HasHoa","HoaIsNotified"'
     ).order('"LeaseStartOn"', { ascending: true }),
     sb.from('home_repair_context').select('*')
   ]);
@@ -48,56 +61,89 @@ async function loadData() {
   const ctxByHome = new Map((ctxRes.data || []).map(r => [r.home_id, r]));
   allRows = (homesRes.data || []).map(h => ({
     ...h,
-    _ctx: ctxByHome.get(h.HomeId) || null
+    _ctx: ctxByHome.get(h.HomeId) || null,
+    _status: deriveStatus(h, ctxByHome.get(h.HomeId) || null)
   }));
 
-  populateFilterOptions();
+  populateSelectOptions();
+  renderMetrics();
   applyFilters();
 }
 
 // ── Filters ──────────────────────────────────────────────────────────────────
 function wireFilters() {
-  ['fSearch', 'fRegion', 'fSpecialist', 'fStatus'].forEach(id => {
-    const el = document.getElementById(id);
-    el.addEventListener('input', () => { persistFilters(); applyFilters(); });
-    el.addEventListener('change', () => { persistFilters(); applyFilters(); });
+  document.getElementById('fSearch').addEventListener('input', e => {
+    filterState.q = e.target.value;
+    persistFilters(); applyFilters();
+  });
+  document.getElementById('fFrom').addEventListener('change', e => {
+    filterState.dateFrom = e.target.value;
+    filterState.dateChip = '';
+    updateDateChipsUI();
+    persistFilters(); applyFilters();
+  });
+  document.getElementById('fTo').addEventListener('change', e => {
+    filterState.dateTo = e.target.value;
+    filterState.dateChip = '';
+    updateDateChipsUI();
+    persistFilters(); applyFilters();
+  });
+  document.getElementById('fRegion').addEventListener('change', e => {
+    filterState.region = e.target.value; persistFilters(); applyFilters();
+  });
+  document.getElementById('fSpecialist').addEventListener('change', e => {
+    filterState.spec = e.target.value; persistFilters(); applyFilters();
   });
   document.getElementById('fClear').addEventListener('click', clearFilters);
 }
 
-function populateFilterOptions() {
+function populateSelectOptions() {
   const regionSel = document.getElementById('fRegion');
   const specSel   = document.getElementById('fSpecialist');
-  const regionCur = regionSel.value;
-  const specCur   = specSel.value;
   const regions = [...new Set(allRows.map(r => r.Region).filter(Boolean))].sort();
   const specs   = [...new Set(allRows.map(r => r.MoveInSpecialist).filter(Boolean))].sort();
   regionSel.innerHTML = `<option value="">All regions</option>` +
-    regions.map(r => `<option>${escapeHtml(r)}</option>`).join('');
+    regions.map(r => `<option${r === filterState.region ? ' selected' : ''}>${escapeHtml(r)}</option>`).join('');
   specSel.innerHTML = `<option value="">All specialists</option>` +
-    specs.map(s => `<option>${escapeHtml(s)}</option>`).join('');
-  regionSel.value = regionCur;
-  specSel.value   = specCur;
+    specs.map(s => `<option${s === filterState.spec ? ' selected' : ''}>${escapeHtml(s)}</option>`).join('');
 }
 
 function applyFilters() {
-  const q      = document.getElementById('fSearch').value.trim().toLowerCase();
-  const region = document.getElementById('fRegion').value;
-  const spec   = document.getElementById('fSpecialist').value;
-  const status = document.getElementById('fStatus').value;
+  const q = (filterState.q || '').trim().toLowerCase();
+  const now = startOfDay(new Date());
 
   filtered = allRows.filter(r => {
-    if (region && r.Region !== region) return false;
-    if (spec && r.MoveInSpecialist !== spec) return false;
-    if (status) {
-      const st = r._ctx?.status || '';
-      if (st !== status) return false;
+    // Metric card filter
+    if (filterState.statusCard) {
+      if (filterState.statusCard === 'urgent') {
+        // urgent = LeaseStartOn within URGENT_DAYS and not ready/signed_off
+        if (!r.LeaseStartOn) return false;
+        const d = startOfDay(new Date(r.LeaseStartOn));
+        const diff = Math.ceil((d - now) / (24 * 60 * 60 * 1000));
+        if (!(diff >= 0 && diff <= URGENT_DAYS)) return false;
+        if (r._status === 'ready' || r._status === 'signed_off') return false;
+      } else {
+        if (r._status !== filterState.statusCard) return false;
+      }
     }
+
+    if (filterState.region && r.Region !== filterState.region) return false;
+    if (filterState.spec   && r.MoveInSpecialist !== filterState.spec) return false;
+
+    // Date range
+    if (filterState.dateFrom || filterState.dateTo) {
+      if (!r.LeaseStartOn) return false;
+      const d = startOfDay(new Date(r.LeaseStartOn));
+      if (filterState.dateFrom && d < startOfDay(new Date(filterState.dateFrom))) return false;
+      if (filterState.dateTo   && d > startOfDay(new Date(filterState.dateTo)))   return false;
+    }
+
     if (q) {
       const haystack = [
-        r.Address, r.ResidentName, r.MoveInSpecialist, r.Concierge, r.Region,
-        String(r.HomeId)
-      ].join(' ').toLowerCase();
+        r.Address, r.ResidentName, r.MoveInSpecialist, r.Concierge,
+        r.ImprovementsSpecialist, r.Region, String(r.HomeId),
+        r._ctx?.repairs_context, r._ctx?.postpone_reason, r._ctx?.expectations
+      ].filter(Boolean).join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -107,41 +153,131 @@ function applyFilters() {
 }
 
 function clearFilters() {
-  ['fSearch', 'fRegion', 'fSpecialist', 'fStatus'].forEach(id => document.getElementById(id).value = '');
+  filterState.q = ''; filterState.statusCard = '';
+  filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
+  filterState.region = ''; filterState.spec = '';
+  document.getElementById('fSearch').value = '';
+  document.getElementById('fFrom').value = '';
+  document.getElementById('fTo').value   = '';
+  document.getElementById('fRegion').value = '';
+  document.getElementById('fSpecialist').value = '';
+  updateMetricCardsUI();
+  updateDateChipsUI();
   persistFilters();
   applyFilters();
 }
 
 function persistFilters() {
-  const state = {
-    q: document.getElementById('fSearch').value,
-    region: document.getElementById('fRegion').value,
-    spec: document.getElementById('fSpecialist').value,
-    status: document.getElementById('fStatus').value,
-    pageSize
-  };
-  try { localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ ...filterState, pageSize })); } catch {}
 }
-
 function restoreFilters() {
   try {
     const raw = localStorage.getItem(FILTER_STORAGE_KEY);
     if (!raw) return;
     const s = JSON.parse(raw);
-    if (s.q)       document.getElementById('fSearch').value = s.q;
-    if (s.region)  document.getElementById('fRegion').value = s.region; // may not be an option yet
-    if (s.spec)    document.getElementById('fSpecialist').value = s.spec;
-    if (s.status)  document.getElementById('fStatus').value = s.status;
-    if (s.pageSize) {
-      pageSize = parseInt(s.pageSize, 10) || 20;
-      const sel = document.getElementById('pageSizeSelect');
-      if (sel) sel.value = String(pageSize);
-    }
+    Object.assign(filterState, {
+      q: s.q || '', statusCard: s.statusCard || '',
+      dateFrom: s.dateFrom || '', dateTo: s.dateTo || '', dateChip: s.dateChip || '',
+      region: s.region || '', spec: s.spec || ''
+    });
+    if (s.pageSize) pageSize = parseInt(s.pageSize, 10) || 20;
+    document.getElementById('fSearch').value = filterState.q;
+    document.getElementById('fFrom').value   = filterState.dateFrom;
+    document.getElementById('fTo').value     = filterState.dateTo;
+    const ps = document.getElementById('pageSizeSelect');
+    if (ps) ps.value = String(pageSize);
   } catch {}
 }
 
-// ── Render ───────────────────────────────────────────────────────────────────
+// ── Metric cards ─────────────────────────────────────────────────────────────
+function computeMetrics() {
+  const now = startOfDay(new Date());
+  const m = { total: 0, ready: 0, in_progress: 0, urgent: 0, grant_access: 0, postponed: 0, signed_off: 0 };
+  allRows.forEach(r => {
+    m.total++;
+    if (m[r._status] != null) m[r._status]++;
+    if (r.LeaseStartOn && r._status !== 'ready' && r._status !== 'signed_off') {
+      const d = startOfDay(new Date(r.LeaseStartOn));
+      const diff = Math.ceil((d - now) / (24 * 60 * 60 * 1000));
+      if (diff >= 0 && diff <= URGENT_DAYS) m.urgent++;
+    }
+  });
+  return m;
+}
+
+function renderMetrics() {
+  const m = computeMetrics();
+  const cards = [
+    { key: '',             label: 'Total Homes',     value: m.total,        cls: 'm-total' },
+    { key: 'ready',        label: 'Ready for Tami',  value: m.ready,        cls: 'm-ready' },
+    { key: 'in_progress',  label: 'In Progress',     value: m.in_progress,  cls: 'm-in_progress' },
+    { key: 'urgent',       label: 'Urgent ≤2 Days',  value: m.urgent,       cls: 'm-urgent' },
+    { key: 'grant_access', label: '🔑 Grant Access',  value: m.grant_access, cls: 'm-grant_access' },
+    { key: 'postponed',    label: '⚠ Postponed',     value: m.postponed,    cls: 'm-postponed' },
+    { key: 'signed_off',   label: '✅ Signed Off',    value: m.signed_off,   cls: 'm-signed_off' }
+  ];
+  document.getElementById('metricStrip').innerHTML = cards.map(c => `
+    <div class="metric-card ${c.cls} ${filterState.statusCard === c.key && c.key !== '' ? 'active' : ''}"
+         onclick="setStatusCard('${c.key}')">
+      <div class="metric-label">${c.label}</div>
+      <div class="metric-value">${c.value}</div>
+    </div>
+  `).join('');
+}
+
+function setStatusCard(key) {
+  // Toggle off if already active, otherwise set it. Empty key = "Total" = clear.
+  filterState.statusCard = (!key || filterState.statusCard === key) ? '' : key;
+  updateMetricCardsUI();
+  persistFilters();
+  applyFilters();
+}
+
+function updateMetricCardsUI() {
+  document.querySelectorAll('.metric-card').forEach(el => el.classList.remove('active'));
+  if (!filterState.statusCard) return;
+  const el = [...document.querySelectorAll('.metric-card')]
+    .find(c => c.getAttribute('onclick')?.includes(`setStatusCard('${filterState.statusCard}')`));
+  if (el) el.classList.add('active');
+}
+
+// ── Date chips ───────────────────────────────────────────────────────────────
+function setDateChip(chip) {
+  const today = startOfDay(new Date());
+  const fmt = d => d.toISOString().slice(0, 10);
+
+  if (filterState.dateChip === chip) {
+    // Toggle off
+    filterState.dateChip = ''; filterState.dateFrom = ''; filterState.dateTo = '';
+  } else {
+    filterState.dateChip = chip;
+    if (chip === 'overdue') {
+      filterState.dateFrom = ''; filterState.dateTo = fmt(addDays(today, -1));
+    } else if (chip === 'this_week') {
+      const dow = today.getDay();                    // 0=Sun
+      const monday = addDays(today, dow === 0 ? -6 : 1 - dow);
+      const sunday = addDays(monday, 6);
+      filterState.dateFrom = fmt(monday); filterState.dateTo = fmt(sunday);
+    } else if (chip === '30_days') {
+      filterState.dateFrom = fmt(today); filterState.dateTo = fmt(addDays(today, 30));
+    }
+  }
+  document.getElementById('fFrom').value = filterState.dateFrom;
+  document.getElementById('fTo').value   = filterState.dateTo;
+  updateDateChipsUI();
+  persistFilters();
+  applyFilters();
+}
+function updateDateChipsUI() {
+  ['overdue', 'this_week', '30_days'].forEach(c => {
+    const el = document.getElementById('chip_' + c);
+    if (el) el.classList.toggle('active', filterState.dateChip === c);
+  });
+}
+
+// ── Render table ─────────────────────────────────────────────────────────────
 function render() {
+  renderMetrics();  // keep counts live (they don't change from filters, but layout re-highlights)
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   currentPage = Math.min(currentPage, totalPages);
@@ -150,11 +286,11 @@ function render() {
   const page  = filtered.slice(start, end);
 
   document.getElementById('tableCount').innerHTML =
-    `<strong>${total}</strong> <span>home${total !== 1 ? 's' : ''}${allRows.length !== total ? ` (of ${allRows.length})` : ''}</span>`;
+    `<strong>${total}</strong> <span>home${total !== 1 ? 's' : ''}${allRows.length !== total ? ` of ${allRows.length}` : ''}</span>`;
 
   const tbody = document.getElementById('homesBody');
   if (!total) {
-    tbody.innerHTML = `<tr><td colspan="7">
+    tbody.innerHTML = `<tr><td colspan="8">
       <div class="empty-state">
         <div class="empty-icon">🏠</div>
         <div class="empty-title">${allRows.length ? 'No matches' : 'No homes yet'}</div>
@@ -165,57 +301,47 @@ function render() {
     return;
   }
 
-  tbody.innerHTML = page.map(r => rowHtml(r)).join('');
+  tbody.innerHTML = page.map(rowHtml).join('');
   renderPagination(start, end, total, totalPages);
 }
 
 function rowHtml(r) {
   const ctx = r._ctx;
-  const status = ctx?.status || deriveStatusFromCsv(r);
+  const status = r._status;
   const statusLabel = labelForStatus(status);
-  const isClickable = status === 'postponed' || status === 'grant_access';
+  const clickableStatus = status === 'postponed' || status === 'grant_access';
   const expSet = expanded.get(r.HomeId) || new Set();
 
-  // Lease date
-  const leaseDate = r.LeaseStartOn
-    ? new Date(r.LeaseStartOn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : '—';
-
-  // Address link
   const linkHref = r.AdminLink || `https://foundation.bln.hm/homes/${r.HomeId}`;
-
-  // Repairs toggle visibility: CSV has unfinished improvements > 0
   const hasCsvRepairs = (r.UnfinishedImprovementsCount ?? 0) > 0;
-  const hasClaudeRepairs = !!(ctx?.repairs_context);
-  const showRepairsToggle = hasCsvRepairs; // CSV-gated per spec
-
-  // Status toggle (Postponed/Grant Access)
   const statusOpen  = expSet.has('status');
   const repairsOpen = expSet.has('repairs');
   const hasExpansion = statusOpen || repairsOpen;
 
+  const paymentBadge = paymentBadgeHtml(r.PaymentStatus);
+  const hoaBadge     = hoaBadgeHtml(r.HasHoa, r.HoaIsNotified);
+
   const mainRow = `
     <tr class="${hasExpansion ? 'expanded' : ''}">
       <td>
-        <span class="home-id" onclick="copyHomeId(event, ${r.HomeId})" title="Copy HomeId">#${r.HomeId}</span>
-      </td>
-      <td>
         <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.Address || '—')}</a>
-        ${r.ResidentName ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">${escapeHtml(r.ResidentName)}</div>` : ''}
+        ${r.MoveInSpecialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.MoveInSpecialist)}</div>` : ''}
       </td>
-      <td style="font-size:11px;color:var(--muted)">${escapeHtml(r.Region || '—')}</td>
-      <td style="font-size:11px;color:var(--muted)">${escapeHtml(r.MoveInSpecialist || '—')}</td>
-      <td style="font-size:11px;color:var(--muted);white-space:nowrap">${leaseDate}</td>
+      <td style="font-size:12px">${escapeHtml(r.ResidentName || '—')}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${formatDateNumeric(r.LeaseStartOn)}</td>
+      <td>${paymentBadge}</td>
+      <td>${hoaBadge}</td>
+      <td style="font-size:11px;color:var(--muted)">${escapeHtml(r.ImprovementsSpecialist || '—')}</td>
       <td>
-        <span class="status-badge status-${status} ${isClickable ? 'clickable' : ''} ${statusOpen ? 'active' : ''}"
-              ${isClickable ? `onclick="toggleExpansion(${r.HomeId}, 'status')"` : ''}>
+        <span class="status-badge status-${status} ${clickableStatus ? 'clickable' : ''} ${statusOpen ? 'active' : ''}"
+              ${clickableStatus ? `onclick="toggleExpansion(${r.HomeId}, 'status')"` : ''}>
           ${statusLabel}
         </span>
       </td>
       <td>
-        ${showRepairsToggle ? `
+        ${hasCsvRepairs ? `
           <span class="row-action ${repairsOpen ? 'active' : ''}" onclick="toggleExpansion(${r.HomeId}, 'repairs')">
-            🔧 Repairs${r.UnfinishedImprovementsCount ? ` (${r.UnfinishedImprovementsCount})` : ''}
+            🔧 ${r.UnfinishedImprovementsCount}
           </span>
         ` : ''}
       </td>
@@ -224,38 +350,35 @@ function rowHtml(r) {
 
   if (!hasExpansion) return mainRow;
 
-  // Expansion row
   let expInner = '';
-
   if (repairsOpen) {
-    let repairsBody = '';
-    if (hasCsvRepairs) {
-      const csvDetail = r.UnfinishedGroupDetails || r.AllUnfinishedDetails;
-      repairsBody += `<div class="sublabel">From CSV (BigQuery)</div>`;
-      repairsBody += `<div>${escapeHtml(csvDetail || `${r.UnfinishedImprovementsCount} unfinished improvements`)}</div>`;
-    }
-    if (hasClaudeRepairs) {
-      repairsBody += `<div class="sublabel">From Slack (Claude analysis)</div>`;
-      repairsBody += `<div>${escapeHtml(ctx.repairs_context)}</div>`;
-    }
+    const items = parseRepairs(r.UnfinishedGroupDetails || r.AllUnfinishedDetails);
+    const listHtml = items.length
+      ? `<ul class="repairs-list">${items.map(it => `
+          <li>${it.id
+              ? `<a href="https://foundation.bln.hm/maintenance/${it.id}" target="_blank" rel="noopener">
+                    <span class="repair-id">#${it.id}</span>${escapeHtml(it.label)} <span style="font-size:10px;color:var(--faint)">↗</span>
+                 </a>`
+              : escapeHtml(it.label)}</li>
+        `).join('')}</ul>`
+      : `<div class="faint">${r.UnfinishedImprovementsCount} unfinished improvements</div>`;
+    const note = ctx?.repairs_context
+      ? `<div class="repairs-note">${escapeHtml(ctx.repairs_context)}</div>` : '';
     expInner += `
       <div class="exp-section">
         <div class="exp-header">
           <span class="exp-label">🔧 Repairs</span>
           <button class="exp-close" onclick="toggleExpansion(${r.HomeId}, 'repairs')" aria-label="Close">✕</button>
         </div>
-        <div class="exp-body">${repairsBody}</div>
+        <div class="exp-body">${listHtml}${note}</div>
       </div>
     `;
   }
-
   if (statusOpen) {
-    const title =
-      status === 'postponed'    ? '🔴 Postponed' :
-      status === 'grant_access' ? '🟡 Grant Access — Expectations' : 'Status';
-    const body =
-      status === 'postponed'    ? (ctx?.postpone_reason || ctx?.repairs_context || '—') :
-      status === 'grant_access' ? (ctx?.expectations   || ctx?.repairs_context || '—') : '—';
+    const title = status === 'postponed' ? 'Postponed' : 'Grant Access — Expectations';
+    const body  = status === 'postponed'
+      ? (ctx?.postpone_reason || ctx?.repairs_context || '—')
+      : (ctx?.expectations    || ctx?.repairs_context || '—');
     expInner += `
       <div class="exp-section">
         <div class="exp-header">
@@ -267,27 +390,7 @@ function rowHtml(r) {
     `;
   }
 
-  return mainRow + `
-    <tr class="expansion">
-      <td colspan="7"><div class="exp-inner">${expInner}</div></td>
-    </tr>
-  `;
-}
-
-function deriveStatusFromCsv(r) {
-  // When no Claude context exists, fall back to CSV milestone.
-  if (r.MoveInCompleted) return 'signed_off';
-  return 'in_progress';
-}
-
-function labelForStatus(s) {
-  return ({
-    ready:        'Ready',
-    postponed:    'Postponed',
-    grant_access: 'Grant Access',
-    signed_off:   'Signed Off',
-    in_progress:  'In Progress'
-  })[s] || 'Unknown';
+  return mainRow + `<tr class="expansion"><td colspan="8"><div class="exp-inner">${expInner}</div></td></tr>`;
 }
 
 function toggleExpansion(homeId, kind) {
@@ -298,22 +401,12 @@ function toggleExpansion(homeId, kind) {
   render();
 }
 
-function copyHomeId(ev, id) {
-  ev.stopPropagation();
-  navigator.clipboard?.writeText(String(id));
-  const el = ev.currentTarget;
-  el.classList.add('copied');
-  const original = el.textContent;
-  el.textContent = '✓ Copied';
-  setTimeout(() => { el.classList.remove('copied'); el.textContent = original; }, 900);
-}
-
+// ── Pagination ───────────────────────────────────────────────────────────────
 function renderPagination(start, end, total, totalPages) {
   const pag = document.getElementById('pagination');
   if (total === 0) { pag.style.display = 'none'; return; }
   pag.style.display = 'flex';
   document.getElementById('pageInfo').textContent = `Showing ${start + 1}–${end} of ${total}`;
-
   let html = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>←</button>`;
   const range = [];
   for (let i = 1; i <= totalPages; i++) {
@@ -327,14 +420,12 @@ function renderPagination(start, end, total, totalPages) {
   html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>`;
   document.getElementById('pageBtns').innerHTML = html;
 }
-
 function goPage(p) {
   const totalPages = Math.ceil(filtered.length / pageSize);
   if (p < 1 || p > totalPages) return;
   currentPage = p;
   render();
 }
-
 function changePageSize() {
   pageSize = parseInt(document.getElementById('pageSizeSelect').value, 10);
   currentPage = 1;
@@ -342,10 +433,59 @@ function changePageSize() {
   render();
 }
 
-// ── Utils ────────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function deriveStatus(h, ctx) {
+  if (ctx?.status) return ctx.status;
+  if (h.MoveInCompleted) return 'signed_off';
+  return 'in_progress';
+}
+
+function labelForStatus(s) {
+  return ({
+    ready: 'Ready', postponed: 'Postponed', grant_access: 'Grant Access',
+    signed_off: 'Signed Off', in_progress: 'In Progress'
+  })[s] || 'Unknown';
+}
+
+function paymentBadgeHtml(status) {
+  if (!status) return `<span class="mini-badge mini-none">—</span>`;
+  const isPaid = /all\s*paid/i.test(status);
+  const isPartial = /unpaid/i.test(status) && !/both/i.test(status);
+  const cls = isPaid ? 'mini-ok' : (isPartial ? 'mini-warn' : 'mini-err');
+  return `<span class="mini-badge ${cls}">${escapeHtml(status)}</span>`;
+}
+
+function hoaBadgeHtml(hasHoa, notified) {
+  if (!hasHoa || hasHoa === 0) return `<span class="mini-badge mini-none">No HOA</span>`;
+  if (notified === 1) return `<span class="mini-badge mini-ok">Notified</span>`;
+  return `<span class="mini-badge mini-warn">Not notified</span>`;
+}
+
+function parseRepairs(str) {
+  if (!str) return [];
+  return String(str).split('|').map(s => s.trim()).filter(Boolean).map(item => {
+    const i = item.indexOf(':');
+    if (i === -1) return { id: null, label: item };
+    const id = item.slice(0, i).trim();
+    const label = item.slice(i + 1).trim();
+    return { id: /^\d+$/.test(id) ? id : null, label };
+  });
+}
+
+function formatDateNumeric(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (isNaN(dt)) return '—';
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const yy = dt.getUTCFullYear();
+  return `${dd}/${mm}/${yy}`;
+}
+
+function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+
 function escapeHtml(s = '') {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function escapeAttr(s = '') { return escapeHtml(s); }
