@@ -10,10 +10,11 @@ let readyHomes = [];
 
   const email = session.user.email || '';
   // Surface-level guard: Ready page is meant for Tami + admin. Anyone else sees a note.
-  const canSignOff = (email === ADMIN_EMAIL || email === TAMI_EMAIL);
+  const canSignOff = (isAdmin(email) || email === TAMI_EMAIL);
 
   await mountHeader({ page: 'ready', session });
   startIdleWatcher();
+  startPresence(session);
 
   document.getElementById('loadingState').style.display = 'none';
   document.getElementById('pageContent').style.display = 'block';

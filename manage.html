@@ -17,6 +17,20 @@
 
   <div class="page-narrow">
 
+    <!-- Online users -->
+    <div class="card online-card" style="margin-bottom:24px">
+      <div class="online-header">
+        <div class="section-title" style="margin:0">Online Users <span class="online-count" id="onlineCount">0</span></div>
+        <div class="online-legend">
+          <span><i class="dot dot-active"></i> Active</span>
+          <span><i class="dot dot-idle"></i> Idle</span>
+        </div>
+      </div>
+      <div class="online-list" id="onlineList">
+        <div class="online-empty">Loading…</div>
+      </div>
+    </div>
+
     <!-- BigQuery CSV upload -->
     <div style="margin-bottom:28px">
       <div class="section-title">1. Upload BigQuery Export (CSV)</div>

@@ -8,7 +8,7 @@ async function mountHeader({ page, session }) {
 
   const user      = session?.user;
   const email     = user?.email || '';
-  const isAdmin   = email === ADMIN_EMAIL;
+  const isAdminUser = isAdmin(email);
   const fullName  = user?.user_metadata?.full_name || email;
   const avatarUrl = user?.user_metadata?.avatar_url || '';
 
@@ -27,7 +27,7 @@ async function mountHeader({ page, session }) {
         <nav class="nav-links">
           <a href="/" class="nav-link ${page === 'dashboard' ? 'active' : ''}">Dashboard</a>
           <a href="/ready" class="nav-link ${page === 'ready' ? 'active' : ''}">Ready</a>
-          ${isAdmin ? `<a href="/manage" class="nav-link ${page === 'manage' ? 'active' : ''}">Manage</a>` : ''}
+          ${isAdminUser ? `<a href="/manage" class="nav-link ${page === 'manage' ? 'active' : ''}">Manage</a>` : ''}
         </nav>
       </div>
 

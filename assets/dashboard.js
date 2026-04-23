@@ -30,6 +30,7 @@ const expanded = new Map();
 
   await mountHeader({ page: 'dashboard', session });
   startIdleWatcher();
+  startPresence(session);
 
   document.getElementById('loadingState').style.display = 'none';
   document.getElementById('pageContent').style.display = 'block';
