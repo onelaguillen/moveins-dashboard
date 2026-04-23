@@ -33,6 +33,27 @@ const COLUMN_FILTERS = {
       { value: 'notified',     label: 'Notified',     test: r => r.HasHoa && r.HoaIsNotified },
       { value: 'not_notified', label: 'Not notified', test: r => r.HasHoa && !r.HoaIsNotified }
     ]
+  },
+  Payment: {
+    label: 'Payment',
+    options: [
+      { value: 'all_paid',        label: 'All paid',        test: r => r.PaymentStatus === 'All Paid' },
+      { value: 'deposit_unpaid',  label: 'Deposit unpaid',  test: r => r.DepositUnpaid === 1 },
+      { value: 'rent_unpaid',     label: 'Rent unpaid',     test: r => r.RentUnpaid === 1 },
+      { value: 'both_unpaid',     label: 'Both unpaid',     test: r => r.PaymentStatus === 'Both Unpaid' },
+      { value: 'autopay_on',      label: 'Autopay on',      test: r => r.EnrolledInAutoPay === 1 },
+      { value: 'autopay_off',     label: 'Autopay off',     test: r => r.EnrolledInAutoPay === 0 }
+    ]
+  },
+  Status: {
+    label: 'Status',
+    options: [
+      { value: 'ready',        label: 'Ready',        test: r => r._status === 'ready' },
+      { value: 'in_progress',  label: 'In Progress',  test: r => r._status === 'in_progress' },
+      { value: 'grant_access', label: 'Grant Access', test: r => r._status === 'grant_access' },
+      { value: 'postponed',    label: 'Postponed',    test: r => r._status === 'postponed' },
+      { value: 'signed_off',   label: 'Signed Off',   test: r => r._status === 'signed_off' }
+    ]
   }
 };
 

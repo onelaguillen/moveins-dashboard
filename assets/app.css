@@ -55,12 +55,27 @@ th.sortable:hover { background: rgba(0,0,0,0.03); }
 .sort-ind { font-size: 10px; color: var(--muted); margin-left: 2px; }
 
 .col-filter-btn {
-  margin-left: 6px; border: none; background: transparent;
-  color: var(--muted); font-size: 10px; cursor: pointer; padding: 0 2px;
-  border-radius: 3px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 8px; padding: 3px 5px;
+  border: 1px solid rgba(0,0,0,0.12); background: #fff;
+  color: var(--muted); cursor: pointer;
+  border-radius: 5px; line-height: 0;
+  vertical-align: middle;
+  transition: all .12s ease;
 }
-.col-filter-btn:hover { background: rgba(0,0,0,0.06); color: var(--text); }
-.col-filter-btn.active { color: var(--accent, #3EE4A9); font-weight: 700; }
+.col-filter-btn svg { display: block; width: 11px; height: 11px; }
+.col-filter-btn:hover {
+  background: #f4f4f4; color: var(--text);
+  border-color: rgba(0,0,0,0.25);
+}
+.col-filter-btn.active {
+  background: #1a1a1a; color: #fff; border-color: #1a1a1a;
+}
+.col-filter-btn.active::after {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: #3EE4A9; margin-left: 4px;
+}
+th.sortable { padding-right: 8px; }
 
 .col-filter-pop {
   position: absolute; z-index: 50;
