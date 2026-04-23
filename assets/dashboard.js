@@ -68,6 +68,7 @@ async function loadData() {
   }));
 
   populateSelectOptions();
+  renderLeaseTypeChips();
   renderMetrics();
   applyFilters();
 }
@@ -221,11 +222,25 @@ function toggleLeaseType(type) {
   applyFilters();
 }
 
+function renderLeaseTypeChips() {
+  const host = document.getElementById('leaseTypeChips');
+  if (!host) return;
+  // Collect all distinct lease types from data, plus keep New/Turnover pinned first.
+  const present = [...new Set(allRows.map(r => r.LeaseType).filter(Boolean))];
+  const pinned = ['New', 'Turnover'];
+  const rest = present.filter(t => !pinned.includes(t)).sort();
+  const all = [...pinned, ...rest];
+  host.innerHTML = all.map(t =>
+    `<button class="chip-btn" id="lt_${escapeAttr(t)}" onclick="toggleLeaseType('${escapeAttr(t)}')">${escapeHtml(t)}</button>`
+  ).join('');
+  updateLeaseTypeUI();
+}
+
 function updateLeaseTypeUI() {
   const set = new Set(filterState.leaseTypes || []);
-  ['New', 'Turnover'].forEach(t => {
-    const el = document.getElementById('lt_' + t);
-    if (el) el.classList.toggle('active', set.has(t));
+  document.querySelectorAll('#leaseTypeChips .chip-btn').forEach(el => {
+    const t = el.id.replace(/^lt_/, '');
+    el.classList.toggle('active', set.has(t));
   });
 }
 
