@@ -435,9 +435,26 @@ function changePageSize() {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function deriveStatus(h, ctx) {
+  // 1. Slack context wins if present
   if (ctx?.status) return ctx.status;
-  if (h.MoveInCompleted) return 'signed_off';
+
+  // 2. CSV fallback — BUT only trust milestone dates that belong to the CURRENT lease.
+  //    BigQuery sometimes carries over LastMoveInCompleted/LastMoveInReady from a
+  //    previous lease. We only treat them as current if >= LeaseStartOn.
+  if (isCurrentLeaseDate(h.MoveInCompleted, h.LeaseStartOn)) return 'signed_off';
   return 'in_progress';
+}
+
+// Returns true if `milestoneDate` is a real event in the CURRENT lease cycle.
+// Guards against stale BigQuery rows where Last* fields point at a previous lease.
+function isCurrentLeaseDate(milestoneDate, leaseStartOn) {
+  if (!milestoneDate) return false;
+  if (!leaseStartOn) return false; // no lease to anchor against → don't trust
+  const m = new Date(milestoneDate);
+  const l = new Date(leaseStartOn);
+  if (isNaN(m) || isNaN(l)) return false;
+  // Compare calendar days so an on-the-day match still counts
+  return startOfDay(m) >= startOfDay(l);
 }
 
 function labelForStatus(s) {
