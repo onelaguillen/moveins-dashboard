@@ -16,32 +16,36 @@
   <div id="appHeader"></div>
 
   <div class="page">
-    <!-- Filters -->
-    <div class="filters">
-      <div class="filter-field" style="flex:1;min-width:200px">
-        <label class="filter-label" for="fSearch">Search</label>
-        <input class="filter-input" id="fSearch" placeholder="Address, resident, specialist, HomeId…">
+
+    <!-- Metric strip (clickable status filters) -->
+    <div class="metric-strip" id="metricStrip"></div>
+
+    <!-- Filter row -->
+    <div class="filter-row">
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input class="search-input" id="fSearch" placeholder="Search address, resident, specialist, HomeId, notes…">
       </div>
-      <div class="filter-field">
-        <label class="filter-label" for="fStatus">Status</label>
-        <select class="filter-select" id="fStatus">
-          <option value="">All statuses</option>
-          <option value="ready">Ready</option>
-          <option value="grant_access">Grant Access</option>
-          <option value="postponed">Postponed</option>
-          <option value="in_progress">In Progress</option>
-          <option value="signed_off">Signed Off</option>
-        </select>
+
+      <div class="date-group">
+        <span class="date-label">From</span>
+        <input type="date" class="date-input" id="fFrom">
+        <span class="date-sep">—</span>
+        <input type="date" class="date-input" id="fTo">
       </div>
-      <div class="filter-field">
-        <label class="filter-label" for="fRegion">Region</label>
-        <select class="filter-select" id="fRegion"><option value="">All regions</option></select>
+
+      <div style="display:flex;gap:6px">
+        <button class="chip-btn" id="chip_overdue"   onclick="setDateChip('overdue')">Overdue</button>
+        <button class="chip-btn" id="chip_this_week" onclick="setDateChip('this_week')">This Week</button>
+        <button class="chip-btn" id="chip_30_days"   onclick="setDateChip('30_days')">30 Days</button>
       </div>
-      <div class="filter-field">
-        <label class="filter-label" for="fSpecialist">Specialist</label>
-        <select class="filter-select" id="fSpecialist"><option value="">All specialists</option></select>
-      </div>
-      <button class="btn btn-ghost filter-clear" id="fClear">Clear</button>
+
+      <select class="select-input" id="fRegion"><option value="">All regions</option></select>
+      <select class="select-input" id="fSpecialist"><option value="">All specialists</option></select>
+
+      <button class="btn btn-ghost" id="fClear" style="margin-left:auto">Clear</button>
     </div>
 
     <!-- Homes table -->
@@ -59,19 +63,20 @@
         <table>
           <thead>
             <tr>
-              <th style="width:90px">ID</th>
               <th>Address</th>
-              <th>Region</th>
-              <th>Specialist</th>
+              <th>Resident</th>
               <th>Move-In</th>
+              <th>Payment</th>
+              <th>HOA</th>
+              <th>HQS</th>
               <th>Status</th>
-              <th style="width:130px"></th>
+              <th style="width:90px">Repairs</th>
             </tr>
           </thead>
           <tbody id="homesBody">
-            <tr><td><div class="skel" style="width:60px"></div></td><td><div class="skel" style="width:240px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:120px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:80px"></div></td><td></td></tr>
-            <tr><td><div class="skel" style="width:60px"></div></td><td><div class="skel" style="width:200px"></div></td><td><div class="skel" style="width:60px"></div></td><td><div class="skel" style="width:140px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:80px"></div></td><td></td></tr>
-            <tr><td><div class="skel" style="width:60px"></div></td><td><div class="skel" style="width:260px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:110px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:80px"></div></td><td></td></tr>
+            <tr><td><div class="skel" style="width:240px"></div></td><td><div class="skel" style="width:120px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:100px"></div></td><td><div class="skel" style="width:80px"></div></td><td></td></tr>
+            <tr><td><div class="skel" style="width:200px"></div></td><td><div class="skel" style="width:130px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:100px"></div></td><td><div class="skel" style="width:80px"></div></td><td></td></tr>
+            <tr><td><div class="skel" style="width:260px"></div></td><td><div class="skel" style="width:110px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:80px"></div></td><td><div class="skel" style="width:70px"></div></td><td><div class="skel" style="width:100px"></div></td><td><div class="skel" style="width:80px"></div></td><td></td></tr>
           </tbody>
         </table>
       </div>
