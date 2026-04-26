@@ -1,24 +1,48 @@
 // ── Manage (/manage) page logic ──────────────────────────────────────────────
-// Admin-only: upload BigQuery CSV, upload Claude's repair-context JSON,
-// bulk-delete homes.
+// Admin-only. Multi-file CSV upload (homes/repairs/pro_services), repair-context
+// JSON upload, sync history, and homes table.
+//
+// Files are detected by their column headers — the user can drop them in any
+// order and the system routes each to the right table.
 
 let allHomes = [];
 let currentPage = 1;
 let pageSize = 20;
 let selectedIds = new Set();
 
-// Integer and float columns for CSV coercion
-const INT_COLS = new Set([
-  'HomeId','LeaseId','ResidentId','MoveInSpecialistId','ConciergeId',
-  'ImprovementsSpecialistId','HasHoa','HoaIsNotified','HadQAInspection','QAInspectionCount',
-  'UnfinishedImprovements','UnfinishedImprovementsCount','IsSatisfied','CSATResponseCount',
-  'NewProServices','NewProServicesCount','BalancesUnpaid','DepositUnpaid','RentUnpaid',
-  'HasDeposit','HasRent','IsPerfectMoveIn','IsPerfectMoveInStrict','EnrolledInAutoPay',
-  'DaysToLeaseStart','BusinessDaysToLeaseStart','IsFastMoveIn'
-]);
-const FLOAT_COLS = new Set([
-  'DepositAmount','RentAmount','PaidRent','ReceivedRent','ProcessingReceiveRent','AvgRating'
-]);
+// Pending upload set: { file, kind, rows, headers, error }
+let pendingUploads = [];
+
+// ── Schema mapping for v3 tables ─────────────────────────────────────────────
+// Each table's column types — drives CSV coercion.
+const TABLE_SCHEMAS = {
+  homes: {
+    int:   ['home_id','lease_id','resident_id','move_in_specialist_id','concierge_id',
+            'improvements_specialist_id','qa_inspection_count','csat_response_count',
+            'balances_unpaid'],
+    float: ['rent_amount','deposit_amount','paid_rent','received_rent',
+            'processing_receive_rent','avg_rating'],
+    bool:  ['has_hoa','hoa_is_notified','is_revised','enrolled_in_auto_pay',
+            'deposit_unpaid','rent_unpaid','has_deposit','has_rent',
+            'had_qa_inspection','is_satisfied'],
+    date:  ['report_date','lease_start_on','lease_executed_on','original_executed_on'],
+    timestamp: ['current_milestone_on','move_in_ready','move_in_completed','csat_created_on']
+  },
+  repairs: {
+    int:   ['maintenance_id','home_id'],
+    float: ['repair_estimated_cost'],
+    bool:  [],
+    date:  [],
+    timestamp: ['repair_created_on']
+  },
+  pro_services: {
+    int:   ['pro_service_id','home_id'],
+    float: [],
+    bool:  [],
+    date:  [],
+    timestamp: ['service_created_on','service_completed_on']
+  }
+};
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
@@ -36,13 +60,13 @@ const FLOAT_COLS = new Set([
   setupCsvDropZone();
   setupJsonDropZone();
   await loadHomes();
+  await renderSyncHistory();
 })();
 
 // ── Online users panel ───────────────────────────────────────────────────────
 let _onlineMyEmail = '';
 function initOnlineUsersPanel(session) {
   _onlineMyEmail = (session.user.email || '').toLowerCase();
-  // Refresh idle-time labels every 30s
   setInterval(renderOnlineUsers, 30000);
 }
 
@@ -117,19 +141,17 @@ function escAttr(s=''){ return escHtml(s); }
 
 // ── Load homes ───────────────────────────────────────────────────────────────
 async function loadHomes() {
-  const { data, error } = await sb
-    .from('homes')
-    .select('"HomeId","Address","MoveInSpecialist","LeaseStartOn","CurrentMilestone","AdminLink"')
-    .order('"LeaseStartOn"', { ascending: true });
-
-  if (error) { showToast('Failed to load homes: ' + error.message, 'error'); return; }
-  allHomes = data || [];
-  selectedIds.clear();
-  currentPage = 1;
-  render();
+  try {
+    allHomes = await dataSource.getHomes();
+    selectedIds.clear();
+    currentPage = 1;
+    render();
+  } catch (e) {
+    showToast('Failed to load homes: ' + e.message, 'error');
+  }
 }
 
-// ── Render table ─────────────────────────────────────────────────────────────
+// ── Render homes table ───────────────────────────────────────────────────────
 function render() {
   const total = allHomes.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -149,8 +171,8 @@ function render() {
       `${selCount} home${selCount !== 1 ? 's' : ''} selected`;
   }
 
-  const allChecked = page.length > 0 && page.every(h => selectedIds.has(h.HomeId));
-  const someChecked = page.some(h => selectedIds.has(h.HomeId));
+  const allChecked = page.length > 0 && page.every(h => selectedIds.has(h.home_id));
+  const someChecked = page.some(h => selectedIds.has(h.home_id));
   const selectAll = document.getElementById('selectAll');
   selectAll.checked = allChecked;
   selectAll.indeterminate = !allChecked && someChecked;
@@ -161,30 +183,29 @@ function render() {
       <div class="empty-state">
         <div class="empty-icon">🏠</div>
         <div class="empty-title">No homes yet</div>
-        <div class="empty-sub">Upload a BigQuery CSV export to populate the dashboard</div>
+        <div class="empty-sub">Upload BigQuery exports (homes / repairs / pro services) above</div>
       </div>
     </td></tr>`;
   } else {
     tbody.innerHTML = page.map(h => {
-      const leaseDate = h.LeaseStartOn
-        ? new Date(h.LeaseStartOn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      const leaseDate = h.lease_start_on
+        ? new Date(h.lease_start_on).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : '—';
-      const milestone = h.CurrentMilestone
-        ? h.CurrentMilestone.replace(/([A-Z])/g, ' $1').trim()
+      const milestone = h.current_milestone
+        ? h.current_milestone.replace(/([A-Z])/g, ' $1').trim()
         : '—';
-      const linkHref = h.AdminLink || `https://foundation.bln.hm/homes/${h.HomeId}`;
-      return `<tr class="${selectedIds.has(h.HomeId) ? 'selected' : ''}">
-        <td><input type="checkbox" class="cb" ${selectedIds.has(h.HomeId) ? 'checked' : ''} onchange="toggleSelect(${h.HomeId})"></td>
-        <td><span class="home-id" onclick="copyId(event, ${h.HomeId})">#${h.HomeId}</span></td>
-        <td><a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(h.Address || '—')}</a></td>
-        <td style="font-size:11px;color:var(--muted)">${escapeHtml(h.MoveInSpecialist || '—')}</td>
+      const linkHref = `https://foundation.bln.hm/homes/${h.home_id}`;
+      return `<tr class="${selectedIds.has(h.home_id) ? 'selected' : ''}">
+        <td><input type="checkbox" class="cb" ${selectedIds.has(h.home_id) ? 'checked' : ''} onchange="toggleSelect(${h.home_id})"></td>
+        <td><span class="home-id" onclick="copyId(event, ${h.home_id})">#${h.home_id}</span></td>
+        <td><a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(h.address || '—')}</a></td>
+        <td style="font-size:11px;color:var(--muted)">${escapeHtml(h.move_in_specialist || '—')}</td>
         <td style="font-size:11px;color:var(--muted);white-space:nowrap">${leaseDate}</td>
         <td style="font-size:11px;color:var(--muted)">${milestone}</td>
       </tr>`;
     }).join('');
   }
 
-  // Pagination
   const pag = document.getElementById('pagination');
   if (total === 0) { pag.style.display = 'none'; return; }
   pag.style.display = 'flex';
@@ -214,7 +235,6 @@ function copyId(ev, id) {
   setTimeout(() => { el.classList.remove('copied'); el.textContent = orig; }, 900);
 }
 
-// ── Selection ────────────────────────────────────────────────────────────────
 function toggleSelect(homeId) {
   selectedIds.has(homeId) ? selectedIds.delete(homeId) : selectedIds.add(homeId);
   render();
@@ -222,8 +242,8 @@ function toggleSelect(homeId) {
 function toggleSelectAll() {
   const start = (currentPage - 1) * pageSize;
   const page = allHomes.slice(start, Math.min(start + pageSize, allHomes.length));
-  const allChecked = page.every(h => selectedIds.has(h.HomeId));
-  page.forEach(h => allChecked ? selectedIds.delete(h.HomeId) : selectedIds.add(h.HomeId));
+  const allChecked = page.every(h => selectedIds.has(h.home_id));
+  page.forEach(h => allChecked ? selectedIds.delete(h.home_id) : selectedIds.add(h.home_id));
   render();
 }
 function goPage(p) {
@@ -238,11 +258,10 @@ function changePageSize() {
   render();
 }
 
-// ── Delete ───────────────────────────────────────────────────────────────────
 function confirmDelete() {
   if (!selectedIds.size) return;
   document.getElementById('modalBody').innerHTML =
-    `You're about to permanently delete <strong>${selectedIds.size} home${selectedIds.size !== 1 ? 's' : ''}</strong> and all their associated repair context.<br><br>This cannot be undone.`;
+    `You're about to permanently delete <strong>${selectedIds.size} home${selectedIds.size !== 1 ? 's' : ''}</strong>.<br><br>This cannot be undone.`;
   document.getElementById('modalOverlay').classList.add('show');
 }
 function closeModal() {
@@ -251,13 +270,13 @@ function closeModal() {
 async function executeDelete() {
   closeModal();
   const ids = [...selectedIds];
-  const { error } = await sb.from('homes').delete().in('"HomeId"', ids);
+  const { error } = await sb.from('homes').delete().in('home_id', ids);
   if (error) { showToast('Delete failed: ' + error.message, 'error'); return; }
   showToast(`✅ ${ids.length} home${ids.length !== 1 ? 's' : ''} deleted`, 'success');
   await loadHomes();
 }
 
-// ── CSV upload (BigQuery homes) ──────────────────────────────────────────────
+// ── CSV multi-file drop ──────────────────────────────────────────────────────
 function setupCsvDropZone() {
   const zone = document.getElementById('csvDropZone');
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
@@ -265,63 +284,202 @@ function setupCsvDropZone() {
   zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('drag-over');
-    const f = e.dataTransfer.files[0];
-    if (f) handleCsv(f);
+    handleCsvFiles(e.dataTransfer.files);
   });
 }
 
-async function handleCsv(file) {
-  if (!file?.name.endsWith('.csv')) { showToast('Please upload a CSV file', 'error'); return; }
+async function handleCsvFiles(fileList) {
+  const files = [...(fileList || [])].filter(f => f && f.name.toLowerCase().endsWith('.csv'));
+  if (!files.length) { showToast('Please drop CSV files', 'error'); return; }
 
-  const text = await file.text();
-  const rows = parseCSV(text);
-  if (!rows.length) { showToast('No data found in CSV', 'error'); return; }
+  pendingUploads = [];
+  for (const f of files) {
+    try {
+      const text = await f.text();
+      const { headers, rows: rawRows } = parseCSVRaw(text);
+
+      // Combined export: split rows by __source_table column into 3 virtual uploads
+      if (isCombinedFile(headers)) {
+        const split = splitCombined(rawRows);
+        for (const kind of ['homes', 'repairs', 'pro_services']) {
+          if (!split[kind].length) continue;
+          const rows = split[kind].map(r => coerceRow(r, kind));
+          pendingUploads.push({
+            file: f,
+            kind,
+            rows,
+            headers,
+            sourceLabel: `${f.name} → ${kind}`
+          });
+        }
+        if (!split.homes.length && !split.repairs.length && !split.pro_services.length) {
+          pendingUploads.push({ file: f, kind: null, rows: [], headers, error: 'Combined file had no recognized rows' });
+        }
+        continue;
+      }
+
+      const kind = detectFileKind(headers);
+      if (!kind) {
+        pendingUploads.push({ file: f, kind: null, rows: [], headers, error: 'Unrecognized columns' });
+        continue;
+      }
+      const rows = rawRows.map(r => coerceRow(r, kind));
+      pendingUploads.push({ file: f, kind, rows, headers });
+    } catch (e) {
+      pendingUploads.push({ file: f, kind: null, rows: [], headers: [], error: e.message });
+    }
+  }
+  renderUploadPreview();
+}
+
+function isCombinedFile(headers) {
+  return headers.map(s => s.toLowerCase()).includes('__source_table');
+}
+
+function splitCombined(rawRows) {
+  const out = { homes: [], repairs: [], pro_services: [] };
+  for (const r of rawRows) {
+    const kind = (r['__source_table'] || '').trim();
+    if (out[kind]) out[kind].push(r);
+  }
+  return out;
+}
+
+function detectFileKind(headers) {
+  const h = new Set(headers.map(s => s.toLowerCase()));
+  if (h.has('maintenance_id') && h.has('home_id') && h.has('repair_summary')) return 'repairs';
+  if (h.has('pro_service_id') && h.has('home_id') && h.has('service_name'))   return 'pro_services';
+  if (h.has('home_id') && h.has('lease_start_on') && h.has('address')
+      && !h.has('maintenance_id') && !h.has('pro_service_id')) return 'homes';
+  return null;
+}
+
+function renderUploadPreview() {
+  const box = document.getElementById('uploadPreview');
+  if (!box) return;
+  if (!pendingUploads.length) { box.innerHTML = ''; return; }
+
+  const labels = { homes: 'Homes', repairs: 'Repairs', pro_services: 'Pro Services' };
+  const rows = pendingUploads.map(u => {
+    const ok = !!u.kind && !u.error;
+    const icon = ok ? '✓' : '✗';
+    const cls  = ok ? 'upload-row-ok' : 'upload-row-err';
+    const dest = ok ? `${labels[u.kind]} (${u.rows.length} rows)` : (u.error || 'Unrecognized — won\'t be uploaded');
+    return `<div class="upload-row ${cls}">
+      <span class="upload-icon">${icon}</span>
+      <span class="upload-name">${escapeHtml(u.file.name)}</span>
+      <span class="upload-arrow">→</span>
+      <span class="upload-dest">${escapeHtml(dest)}</span>
+    </div>`;
+  }).join('');
+
+  const validCount = pendingUploads.filter(u => u.kind).length;
+
+  box.innerHTML = `
+    <div class="upload-preview-list">${rows}</div>
+    <div class="upload-actions" style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="cancelUploads()">Cancel</button>
+      <button class="btn btn-green" onclick="commitUploads()" ${validCount ? '' : 'disabled'}>
+        Upload all (${validCount})
+      </button>
+    </div>
+  `;
+}
+
+function cancelUploads() {
+  pendingUploads = [];
+  renderUploadPreview();
+}
+
+async function commitUploads() {
+  const valid = pendingUploads.filter(u => u.kind);
+  if (!valid.length) return;
+
+  const session = await sb.auth.getSession();
+  const email = session.data?.session?.user?.email || 'unknown';
+
+  // Open a sync_log entry up front
+  const startedAt = new Date().toISOString();
+  let logRow;
+  try {
+    logRow = await dataSource.logSync({
+      startedAt, status: 'running', triggeredBy: email,
+      counts: {}
+    });
+  } catch (e) {
+    showToast('Could not start sync log: ' + e.message, 'error');
+  }
 
   const progress = document.getElementById('csvProgress');
-  const fill = document.getElementById('csvProgressFill');
+  const fill  = document.getElementById('csvProgressFill');
   const label = document.getElementById('csvProgressLabel');
   progress.style.display = 'block';
   fill.style.width = '0%';
 
-  const BATCH = 100;
-  let uploaded = 0;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH);
-    const { error } = await sb.from('homes').upsert(batch, { onConflict: '"HomeId"' });
-    if (error) { showToast('Upload error: ' + error.message, 'error'); break; }
-    uploaded += batch.length;
-    const pct = Math.round((uploaded / rows.length) * 100);
-    fill.style.width = pct + '%';
-    label.textContent = `Uploading… ${uploaded} / ${rows.length} homes`;
+  const counts = {};
+  let errored = null;
+
+  try {
+    for (let i = 0; i < valid.length; i++) {
+      const u = valid[i];
+      label.textContent = `Uploading ${u.file.name} → ${u.kind}…`;
+      let result;
+      if (u.kind === 'homes')        result = await dataSource.replaceHomes(u.rows);
+      if (u.kind === 'repairs')      result = await dataSource.replaceRepairs(u.rows);
+      if (u.kind === 'pro_services') result = await dataSource.replaceProServices(u.rows);
+      counts[u.kind] = result?.inserted ?? u.rows.length;
+      fill.style.width = Math.round(((i + 1) / valid.length) * 100) + '%';
+    }
+  } catch (e) {
+    errored = e.message;
   }
-  fill.style.width = '100%';
-  label.textContent = `✅ ${uploaded} homes synced`;
-  setTimeout(() => { progress.style.display = 'none'; fill.style.width = '0%'; }, 3000);
-  showToast(`✅ ${uploaded} homes uploaded`, 'success');
+
+  // Close out sync_log
+  try {
+    if (logRow?.id) {
+      await dataSource.updateSyncLog(logRow.id, {
+        finished_at: new Date().toISOString(),
+        row_count_homes:        counts.homes        ?? null,
+        row_count_repairs:      counts.repairs      ?? null,
+        row_count_pro_services: counts.pro_services ?? null,
+        status: errored ? 'error' : 'success',
+        error_message: errored || null
+      });
+    }
+  } catch (_) {}
+
+  if (errored) {
+    label.textContent = '✗ Upload failed: ' + errored;
+    showToast('Upload error: ' + errored, 'error');
+  } else {
+    const summary = Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ');
+    label.textContent = `✅ ${summary}`;
+    showToast(`✅ Synced: ${summary}`, 'success');
+  }
+
+  setTimeout(() => { progress.style.display = 'none'; fill.style.width = '0%'; }, 5000);
+  pendingUploads = [];
+  renderUploadPreview();
   await loadHomes();
+  await renderSyncHistory();
 }
 
-function parseCSV(text) {
+// ── CSV parsing + coercion ───────────────────────────────────────────────────
+function parseCSVRaw(text) {
   const lines = text.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
+  if (lines.length < 1) return { headers: [], rows: [] };
   const headers = parseCSVLine(lines[0]);
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
-    if (values.length < 2) continue;
+    if (!values.length) continue;
     const row = {};
-    headers.forEach((h, idx) => {
-      const val = values[idx] ?? '';
-      if (val === '') row[h] = null;
-      else if (INT_COLS.has(h)) row[h] = parseInt(val, 10);
-      else if (FLOAT_COLS.has(h)) row[h] = parseFloat(val);
-      else row[h] = val;
-    });
-    row['last_synced_at'] = new Date().toISOString();
+    headers.forEach((h, idx) => { row[h] = values[idx] ?? ''; });
     rows.push(row);
   }
-  return rows;
+  return { headers, rows };
 }
+
 function parseCSVLine(line) {
   const result = []; let cur = '', inQuotes = false;
   for (let i = 0; i < line.length; i++) {
@@ -336,9 +494,88 @@ function parseCSVLine(line) {
   return result;
 }
 
+function coerceRow(raw, kind) {
+  const schema = TABLE_SCHEMAS[kind];
+  if (!schema) return raw;
+  const intSet  = new Set(schema.int);
+  const flSet   = new Set(schema.float);
+  const boolSet = new Set(schema.bool);
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const val = (v === '' || v == null) ? null : v;
+    if (val == null) { out[k] = null; continue; }
+    if (intSet.has(k))   { const n = parseInt(val, 10);  out[k] = isNaN(n) ? null : n; continue; }
+    if (flSet.has(k))    { const n = parseFloat(val);    out[k] = isNaN(n) ? null : n; continue; }
+    if (boolSet.has(k))  { out[k] = coerceBool(val); continue; }
+    out[k] = val;
+  }
+  out.last_synced_at = new Date().toISOString();
+  return out;
+}
+
+function coerceBool(v) {
+  if (v === true || v === false) return v;
+  const s = String(v).trim().toLowerCase();
+  if (s === 'true'  || s === 't' || s === '1' || s === 'yes') return true;
+  if (s === 'false' || s === 'f' || s === '0' || s === 'no')  return false;
+  return null;
+}
+
+// ── Sync history ─────────────────────────────────────────────────────────────
+async function renderSyncHistory() {
+  const box = document.getElementById('syncHistory');
+  if (!box) return;
+  let rows = [];
+  try {
+    rows = await dataSource.getSyncLog(10);
+  } catch (e) {
+    box.innerHTML = `<div class="faint">Could not load sync history: ${escapeHtml(e.message)}</div>`;
+    return;
+  }
+  if (!rows.length) {
+    box.innerHTML = `<div class="faint" style="font-size:12px">No syncs yet.</div>`;
+    return;
+  }
+
+  box.innerHTML = `
+    <table class="sync-log-table" style="width:100%;font-size:12px;border-collapse:collapse">
+      <thead>
+        <tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border)">
+          <th style="padding:6px 8px">Started</th>
+          <th style="padding:6px 8px">Status</th>
+          <th style="padding:6px 8px">Homes</th>
+          <th style="padding:6px 8px">Repairs</th>
+          <th style="padding:6px 8px">Pro Svcs</th>
+          <th style="padding:6px 8px">By</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px;white-space:nowrap">${escapeHtml(formatDateTime(r.started_at))}</td>
+            <td style="padding:6px 8px"><span class="mini-badge ${r.status === 'success' ? 'mini-ok' : (r.status === 'error' ? 'mini-err' : 'mini-warn')}">${escapeHtml(r.status || '—')}</span></td>
+            <td style="padding:6px 8px">${r.row_count_homes ?? '—'}</td>
+            <td style="padding:6px 8px">${r.row_count_repairs ?? '—'}</td>
+            <td style="padding:6px 8px">${r.row_count_pro_services ?? '—'}</td>
+            <td style="padding:6px 8px;color:var(--muted)">${escapeHtml(r.triggered_by || '—')}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function formatDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
 // ── JSON upload (Claude repair context) ──────────────────────────────────────
 function setupJsonDropZone() {
   const zone = document.getElementById('jsonDropZone');
+  if (!zone) return;
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
   zone.addEventListener('drop', e => {
@@ -365,8 +602,7 @@ async function handleJson(file) {
   progress.style.display = 'block';
   fill.style.width = '0%';
 
-  // Build rows. Accept home_id directly or extract from foundation_url.
-  const knownHomeIds = new Set(allHomes.map(h => h.HomeId));
+  const knownHomeIds = new Set(allHomes.map(h => h.home_id));
   const toUpsert = [];
   const missing  = [];
 
@@ -383,8 +619,7 @@ async function handleJson(file) {
       status: h.status || null,
       repairs_context: h.repairs_context ?? h.notes ?? null,
       postpone_reason: h.postpone_reason ?? null,
-      expectations: h.expectations ?? null,
-      lease_url: h.lease_url ?? null
+      expectations: h.expectations ?? null
     });
   });
 
@@ -394,7 +629,6 @@ async function handleJson(file) {
     return;
   }
 
-  // Upsert in batches
   const BATCH = 100;
   let uploaded = 0;
   for (let i = 0; i < toUpsert.length; i += BATCH) {

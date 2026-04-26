@@ -978,3 +978,35 @@ tr.expansion td {
   .user-name { display: none; }
   .logo-text { display: none; }
 }
+
+/* ── v3 additions ────────────────────────────────────────────────────────── */
+.badge-post-move-in {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid var(--red-border);
+}
+
+.status-urgent { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
+
+#chip_handed_off.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+.upload-preview-list { display: flex; flex-direction: column; gap: 4px; }
+.upload-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; padding: 6px 10px; border-radius: 4px;
+  background: var(--surface2); border: 1px solid var(--border);
+}
+.upload-row-ok  { border-color: var(--green-border); }
+.upload-row-err { border-color: var(--red-border); color: var(--red); }
+.upload-row .upload-icon { width: 16px; font-weight: 700; }
+.upload-row .upload-name { flex: 0 0 auto; font-weight: 600; }
+.upload-row .upload-arrow { color: var(--faint); }
+.upload-row .upload-dest { color: var(--muted); }
+
+.sync-log-table th { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }

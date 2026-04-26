@@ -1,84 +1,80 @@
 // ── Dashboard (/) page logic ─────────────────────────────────────────────────
-// Reads `homes` + `home_repair_context`, renders Belong-style dashboard with
-// clickable metric cards, date range filter, and per-row toggle panels.
+// v3 schema: reads via dataSource, derives view-models via derive.js.
 
-const FILTER_STORAGE_KEY = 'belong.dashboard.filters.v2';
+const FILTER_STORAGE_KEY = 'belong.dashboard.filters.v3';
 const URGENT_DAYS = 2;
 
-let allRows   = [];
+let allRows   = [];          // enriched homes (post-derive)
 let filtered  = [];
 let currentPage = 1;
 let pageSize    = 20;
 
 const filterState = {
   q: '',
-  statusCard: '',     // 'ready' | 'in_progress' | 'urgent' | 'grant_access' | 'postponed' | 'signed_off' | ''
+  statusCard: '',     // 'ready' | 'in_progress' | 'urgent' | 'handed_off' | ''
   dateFrom: '',
   dateTo: '',
   dateChip: '',       // 'overdue' | 'this_week' | '30_days' | ''
   region: '',
   spec: '',
-  leaseTypes: ['New', 'Turnover'],  // default: both selected
   fastMoveIn: false,
-  columnFilters: {}  // { HOA: ['no_hoa','notified','not_notified'], ... }
+  showHandedOff: false, // hide handed-off homes by default
+  columnFilters: {}
 };
 
 // Column-filter config: per-column filter options + predicate.
-// Add new columns here to extend the pattern.
 const COLUMN_FILTERS = {
   HOA: {
     label: 'HOA',
     options: [
-      { value: 'no_hoa',       label: 'No HOA',       test: r => !r.HasHoa },
-      { value: 'notified',     label: 'Notified',     test: r => r.HasHoa && r.HoaIsNotified },
-      { value: 'not_notified', label: 'Not notified', test: r => r.HasHoa && !r.HoaIsNotified }
+      { value: 'no_hoa',       label: 'No HOA',       test: r => !r.has_hoa },
+      { value: 'notified',     label: 'Notified',     test: r => r.has_hoa &&  r.hoa_is_notified },
+      { value: 'not_notified', label: 'Not notified', test: r => r.has_hoa && !r.hoa_is_notified }
     ]
   },
   Payment: {
     label: 'Payment',
     options: [
-      { value: 'all_paid',        label: 'All paid',        test: r => r.PaymentStatus === 'All Paid' },
-      { value: 'deposit_unpaid',  label: 'Deposit unpaid',  test: r => r.DepositUnpaid === 1 },
-      { value: 'rent_unpaid',     label: 'Rent unpaid',     test: r => r.RentUnpaid === 1 },
-      { value: 'both_unpaid',     label: 'Both unpaid',     test: r => r.PaymentStatus === 'Both Unpaid' },
-      { value: 'autopay_on',      label: 'Autopay on',      test: r => r.EnrolledInAutoPay === 1 },
-      { value: 'autopay_off',     label: 'Autopay off',     test: r => r.EnrolledInAutoPay === 0 }
+      { value: 'all_paid',        label: 'All paid',        test: r => r.derived.payment_status === 'all_paid' },
+      { value: 'deposit_unpaid',  label: 'Deposit unpaid',  test: r => r.derived.payment_status === 'deposit_unpaid' },
+      { value: 'rent_unpaid',     label: 'Rent unpaid',     test: r => r.derived.payment_status === 'rent_unpaid' },
+      { value: 'both_unpaid',     label: 'Both unpaid',     test: r => r.derived.payment_status === 'both_unpaid' },
+      { value: 'autopay_on',      label: 'Autopay on',      test: r => r.enrolled_in_auto_pay === true },
+      { value: 'autopay_off',     label: 'Autopay off',     test: r => r.enrolled_in_auto_pay === false }
     ]
   },
   Status: {
     label: 'Status',
     options: [
-      { value: 'ready',        label: 'Ready',        test: r => r._status === 'ready' },
-      { value: 'in_progress',  label: 'In Progress',  test: r => r._status === 'in_progress' },
-      { value: 'grant_access', label: 'Grant Access', test: r => r._status === 'grant_access' },
-      { value: 'postponed',    label: 'Postponed',    test: r => r._status === 'postponed' },
-      { value: 'signed_off',   label: 'Signed Off',   test: r => r._status === 'signed_off' }
+      { value: 'ready',        label: 'Ready',        test: r => r.derived.derived_ready_state === 'ready' },
+      { value: 'in_progress',  label: 'In Progress',  test: r => r.derived.derived_ready_state === 'in_progress' },
+      { value: 'urgent',       label: 'Urgent',       test: r => r.derived.derived_ready_state === 'urgent' },
+      { value: 'handed_off',   label: 'Handed off',   test: r => !!r.context?.handed_off_to_concierge }
     ]
   },
   HQS: {
     label: 'HQS',
-    // Options generated dynamically from data (unique ImprovementsSpecialist values)
     dynamic: true,
     build: rows => {
-      const names = [...new Set(rows.map(r => r.ImprovementsSpecialist).filter(Boolean))].sort();
+      const names = [...new Set(rows.map(r => r.improvements_specialist).filter(Boolean))].sort();
       const opts = names.map(n => ({
-        value: n, label: n, test: r => r.ImprovementsSpecialist === n
+        value: n, label: n, test: r => r.improvements_specialist === n
       }));
-      opts.unshift({ value: '__none__', label: '— Unassigned —', test: r => !r.ImprovementsSpecialist });
+      opts.unshift({ value: '__none__', label: '— Unassigned —', test: r => !r.improvements_specialist });
       return opts;
     }
   }
 };
 
-const sortState = { key: 'LeaseStartOn', dir: 'asc' };
+const sortState = { key: 'lease_start_on', dir: 'asc' };
 const SORT_KEYS = {
-  Address:       r => (r.Address || '').toLowerCase(),
-  Resident:      r => (r.ResidentName || '').toLowerCase(),
-  LeaseStartOn:  r => r.LeaseStartOn ? new Date(r.LeaseStartOn).getTime() : Infinity,
-  Payment:       r => (r.PaymentStatus || '').toLowerCase(),
-  HOA:           r => (r.HasHoa ? 1 : 0) + (r.HoaIsNotified ? 0.5 : 0),
-  HQS:           r => (r.ImprovementsSpecialist || '').toLowerCase(),
-  Status:        r => r._status || ''
+  Address:        r => (r.address || '').toLowerCase(),
+  Resident:       r => (r.resident_name || '').toLowerCase(),
+  lease_start_on: r => r.lease_start_on ? new Date(r.lease_start_on).getTime() : Infinity,
+  Payment:        r => (r.derived.payment_status || '').toLowerCase(),
+  HOA:            r => (r.has_hoa ? 1 : 0) + (r.hoa_is_notified ? 0.5 : 0),
+  HQS:            r => (r.improvements_specialist || '').toLowerCase(),
+  Status:         r => r.derived.derived_ready_state || ''
 };
 
 function setSort(key) {
@@ -91,7 +87,7 @@ function setSort(key) {
   applyFilters();
 }
 
-// Row expansion state: Map<homeId, Set<'repairs'|'status'>>
+// Row expansion state: Map<homeId, Set<'repairs'|'status'|'payment'>>
 const expanded = new Map();
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -113,38 +109,24 @@ const expanded = new Map();
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 async function loadData() {
-  const [homesRes, ctxRes] = await Promise.all([
-    sb.from('homes').select(
-      '"HomeId","Address","Region","ResidentName",' +
-      '"MoveInSpecialist","Concierge","ImprovementsSpecialist",' +
-      '"LeaseStartOn","LeaseExecutedOn","LeaseType","CurrentMilestone","MoveInReady","MoveInCompleted",' +
-      '"AdminLink",' +
-      '"RentAmount","DepositAmount","DepositType","EnrolledInAutoPay",' +
-      '"MoveInPaymentStatus","PaidRent","ReceivedRent","ProcessingReceiveRent",' +
-      '"DepositUnpaid","RentUnpaid","HasDeposit","HasRent",' +
-      '"PaymentStatus","BalanceDetail","PaymentDueDate","IsFastMoveIn",' +
-      '"DaysToLeaseStart","BusinessDaysToLeaseStart",' +
-      '"UnfinishedImprovements","UnfinishedImprovementsCount",' +
-      '"UnfinishedGroupDetails","AllUnfinishedDetails",' +
-      '"HasHoa","HoaIsNotified"'
-    ).order('"LeaseStartOn"', { ascending: true }),
-    sb.from('home_repair_context').select('*')
-  ]);
+  try {
+    const [homes, repairs, proServices, repairStatuses, repairContext] = await Promise.all([
+      dataSource.getHomes(),
+      dataSource.getRepairs(),
+      dataSource.getProServices(),
+      dataSource.getRepairStatuses(),
+      dataSource.getRepairContext()
+    ]);
 
-  if (homesRes.error) { showToast('Failed to load homes: ' + homesRes.error.message, 'error'); return; }
-  if (ctxRes.error)   { console.warn('Context load failed:', ctxRes.error.message); }
+    allRows = deriveViewModels(homes, repairs, proServices, repairStatuses, repairContext);
 
-  const ctxByHome = new Map((ctxRes.data || []).map(r => [r.home_id, r]));
-  allRows = (homesRes.data || []).map(h => ({
-    ...h,
-    _ctx: ctxByHome.get(h.HomeId) || null,
-    _status: deriveStatus(h, ctxByHome.get(h.HomeId) || null)
-  }));
-
-  populateSelectOptions();
-  renderLeaseTypeChips();
-  renderMetrics();
-  applyFilters();
+    populateSelectOptions();
+    renderMetrics();
+    applyFilters();
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to load: ' + err.message, 'error');
+  }
 }
 
 // ── Filters ──────────────────────────────────────────────────────────────────
@@ -212,8 +194,8 @@ function updateDateClearUI() {
 function populateSelectOptions() {
   const regionSel = document.getElementById('fRegion');
   const specSel   = document.getElementById('fSpecialist');
-  const regions = [...new Set(allRows.map(r => r.Region).filter(Boolean))].sort();
-  const specs   = [...new Set(allRows.map(r => r.MoveInSpecialist).filter(Boolean))].sort();
+  const regions = [...new Set(allRows.map(r => r.region).filter(Boolean))].sort();
+  const specs   = [...new Set(allRows.map(r => r.move_in_specialist).filter(Boolean))].sort();
   regionSel.innerHTML = `<option value="">All regions</option>` +
     regions.map(r => `<option${r === filterState.region ? ' selected' : ''}>${escapeHtml(r)}</option>`).join('');
   specSel.innerHTML = `<option value="">All specialists</option>` +
@@ -222,34 +204,26 @@ function populateSelectOptions() {
 
 function applyFilters() {
   const q = (filterState.q || '').trim().toLowerCase();
-  const now = startOfDay(new Date());
 
   filtered = allRows.filter(r => {
+    // Hide handed-off homes by default; the 'handed_off' status card or chip toggles them.
+    const handedOff = !!r.context?.handed_off_to_concierge;
+    if (handedOff && !filterState.showHandedOff && filterState.statusCard !== 'handed_off') return false;
+
     // Metric card filter
     if (filterState.statusCard) {
       if (filterState.statusCard === 'urgent') {
-        // urgent = LeaseStartOn within URGENT_DAYS and not ready/signed_off
-        if (!r.LeaseStartOn) return false;
-        const d = startOfDay(new Date(r.LeaseStartOn));
-        const diff = Math.ceil((d - now) / (24 * 60 * 60 * 1000));
-        if (!(diff >= 0 && diff <= URGENT_DAYS)) return false;
-        if (r._status === 'ready' || r._status === 'signed_off') return false;
+        if (r.derived.derived_ready_state !== 'urgent') return false;
+      } else if (filterState.statusCard === 'handed_off') {
+        if (!handedOff) return false;
       } else {
-        if (r._status !== filterState.statusCard) return false;
+        if (r.derived.derived_ready_state !== filterState.statusCard) return false;
       }
     }
 
-    if (filterState.region && r.Region !== filterState.region) return false;
-    if (filterState.spec   && r.MoveInSpecialist !== filterState.spec) return false;
-
-    // Lease type filter (active chips). Empty array = nothing passes.
-    if (Array.isArray(filterState.leaseTypes)) {
-      if (filterState.leaseTypes.length === 0) return false;
-      if (!filterState.leaseTypes.includes(r.LeaseType)) return false;
-    }
-
-    // Fast move-in filter
-    if (filterState.fastMoveIn && !(r.IsFastMoveIn === 1 || r.IsFastMoveIn === true)) return false;
+    if (filterState.region && r.region !== filterState.region) return false;
+    if (filterState.spec   && r.move_in_specialist !== filterState.spec) return false;
+    if (filterState.fastMoveIn && !r.derived.is_fast_move_in) return false;
 
     // Column filters (Excel-style popovers)
     for (const [key, values] of Object.entries(filterState.columnFilters || {})) {
@@ -261,26 +235,26 @@ function applyFilters() {
       if (!opts.some(o => o.test(r))) return false;
     }
 
-    // Date range
     if (filterState.dateFrom || filterState.dateTo) {
-      if (!r.LeaseStartOn) return false;
-      const d = startOfDay(new Date(r.LeaseStartOn));
+      if (!r.lease_start_on) return false;
+      const d = startOfDay(new Date(r.lease_start_on));
       if (filterState.dateFrom && d < startOfDay(new Date(filterState.dateFrom))) return false;
       if (filterState.dateTo   && d > startOfDay(new Date(filterState.dateTo)))   return false;
     }
 
     if (q) {
+      const ctx = r.context || {};
       const haystack = [
-        r.Address, r.ResidentName, r.MoveInSpecialist, r.Concierge,
-        r.ImprovementsSpecialist, r.Region, String(r.HomeId),
-        r._ctx?.repairs_context, r._ctx?.postpone_reason, r._ctx?.expectations
+        r.address, r.resident_name, r.move_in_specialist, r.concierge,
+        r.improvements_specialist, r.region, String(r.home_id),
+        ctx.repairs_context, ctx.postpone_reason, ctx.expectations
       ].filter(Boolean).join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
   });
-  // Apply sort
-  const keyFn = SORT_KEYS[sortState.key] || SORT_KEYS.LeaseStartOn;
+
+  const keyFn = SORT_KEYS[sortState.key] || SORT_KEYS.lease_start_on;
   const mul = sortState.dir === 'desc' ? -1 : 1;
   filtered.sort((a, b) => {
     const va = keyFn(a), vb = keyFn(b);
@@ -297,8 +271,8 @@ function clearFilters() {
   filterState.q = ''; filterState.statusCard = '';
   filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
   filterState.region = ''; filterState.spec = '';
-  filterState.leaseTypes = ['New', 'Turnover'];
   filterState.fastMoveIn = false;
+  filterState.showHandedOff = false;
   filterState.columnFilters = {};
   document.getElementById('fSearch').value = '';
   if (window._datePicker) window._datePicker.clear();
@@ -307,72 +281,8 @@ function clearFilters() {
   updateMetricCardsUI();
   updateDateClearUI();
   updateDateChipsUI();
-  updateLeaseTypeUI();
   persistFilters();
   applyFilters();
-}
-
-function toggleLeaseType(type) {
-  const set = new Set(filterState.leaseTypes || []);
-  set.has(type) ? set.delete(type) : set.add(type);
-  filterState.leaseTypes = [...set];
-  updateLeaseTypeUI();
-  persistFilters();
-  applyFilters();
-}
-
-function renderLeaseTypeChips() {
-  const menu = document.getElementById('leaseTypeMenu');
-  if (!menu) return;
-  // Known types from BigQuery: New, Turnover, Adopted, Renewal, Revised.
-  // Always show them; then append anything else found in the data.
-  const known = ['New', 'Turnover', 'Adopted', 'Renewal', 'Revised'];
-  const present = [...new Set(allRows.map(r => r.LeaseType).filter(Boolean))];
-  const pinned = ['New', 'Turnover'];
-  const extras = [...new Set([...known.filter(t => !pinned.includes(t)), ...present.filter(t => !pinned.includes(t))])].sort();
-  const all = [...pinned, ...extras];
-  menu.innerHTML = all.map(t => `
-    <label>
-      <input type="checkbox" value="${escapeAttr(t)}" onchange="toggleLeaseType('${escapeAttr(t)}')">
-      <span>${escapeHtml(t)}</span>
-    </label>
-  `).join('');
-  updateLeaseTypeUI();
-}
-
-function toggleLeaseTypeMenu(ev) {
-  if (ev) ev.stopPropagation();
-  const menu = document.getElementById('leaseTypeMenu');
-  if (!menu) return;
-  const isHidden = menu.hasAttribute('hidden');
-  if (isHidden) {
-    menu.removeAttribute('hidden');
-    document.addEventListener('click', closeLeaseTypeMenuOnClickOutside);
-  } else {
-    menu.setAttribute('hidden', '');
-    document.removeEventListener('click', closeLeaseTypeMenuOnClickOutside);
-  }
-}
-function closeLeaseTypeMenuOnClickOutside(ev) {
-  const dd = document.getElementById('leaseTypeDropdown');
-  if (!dd || dd.contains(ev.target)) return;
-  const menu = document.getElementById('leaseTypeMenu');
-  if (menu) menu.setAttribute('hidden', '');
-  document.removeEventListener('click', closeLeaseTypeMenuOnClickOutside);
-}
-
-function updateLeaseTypeUI() {
-  const set = new Set(filterState.leaseTypes || []);
-  document.querySelectorAll('#leaseTypeMenu input[type="checkbox"]').forEach(cb => {
-    cb.checked = set.has(cb.value);
-  });
-  const label = document.getElementById('leaseTypeLabel');
-  if (label) {
-    const arr = filterState.leaseTypes || [];
-    label.textContent = arr.length === 0
-      ? 'Lease type: none'
-      : `Lease type: ${arr.length <= 2 ? arr.join(', ') : arr.length + ' selected'}`;
-  }
 }
 
 function persistFilters() {
@@ -387,11 +297,12 @@ function restoreFilters() {
       q: s.q || '', statusCard: s.statusCard || '',
       dateFrom: s.dateFrom || '', dateTo: s.dateTo || '', dateChip: s.dateChip || '',
       region: s.region || '', spec: s.spec || '',
-      leaseTypes: Array.isArray(s.leaseTypes) ? s.leaseTypes : ['New', 'Turnover']
+      fastMoveIn: !!s.fastMoveIn,
+      showHandedOff: !!s.showHandedOff,
+      columnFilters: s.columnFilters || {}
     });
     if (s.pageSize) pageSize = parseInt(s.pageSize, 10) || 20;
     document.getElementById('fSearch').value = filterState.q;
-    updateLeaseTypeUI();
     const ps = document.getElementById('pageSizeSelect');
     if (ps) ps.value = String(pageSize);
   } catch {}
@@ -399,16 +310,17 @@ function restoreFilters() {
 
 // ── Metric cards ─────────────────────────────────────────────────────────────
 function computeMetrics() {
-  const now = startOfDay(new Date());
-  const m = { total: 0, ready: 0, in_progress: 0, urgent: 0, grant_access: 0, postponed: 0, signed_off: 0 };
+  const m = { total: 0, ready: 0, in_progress: 0, urgent: 0, handed_off: 0 };
   allRows.forEach(r => {
+    const handedOff = !!r.context?.handed_off_to_concierge;
+    if (handedOff) m.handed_off++;
+    // Total/state counts exclude handed-off so the dashboard stays clean.
+    if (handedOff) return;
     m.total++;
-    if (m[r._status] != null) m[r._status]++;
-    if (r.LeaseStartOn && r._status !== 'ready' && r._status !== 'signed_off') {
-      const d = startOfDay(new Date(r.LeaseStartOn));
-      const diff = Math.ceil((d - now) / (24 * 60 * 60 * 1000));
-      if (diff >= 0 && diff <= URGENT_DAYS) m.urgent++;
-    }
+    const s = r.derived.derived_ready_state;
+    if (s === 'ready') m.ready++;
+    else if (s === 'in_progress') m.in_progress++;
+    else if (s === 'urgent') m.urgent++;
   });
   return m;
 }
@@ -416,13 +328,11 @@ function computeMetrics() {
 function renderMetrics() {
   const m = computeMetrics();
   const cards = [
-    { key: '',             label: 'Total Homes',     value: m.total,        cls: 'm-total' },
-    { key: 'ready',        label: 'Ready for Tami',  value: m.ready,        cls: 'm-ready' },
-    { key: 'in_progress',  label: 'In Progress',     value: m.in_progress,  cls: 'm-in_progress' },
-    { key: 'urgent',       label: 'Urgent ≤2 Days',  value: m.urgent,       cls: 'm-urgent' },
-    { key: 'grant_access', label: '🔑 Grant Access',  value: m.grant_access, cls: 'm-grant_access' },
-    { key: 'postponed',    label: '⚠ Postponed',     value: m.postponed,    cls: 'm-postponed' },
-    { key: 'signed_off',   label: '✅ Signed Off',    value: m.signed_off,   cls: 'm-signed_off' }
+    { key: '',            label: 'Total Homes',     value: m.total,        cls: 'm-total' },
+    { key: 'ready',       label: 'Ready',           value: m.ready,        cls: 'm-ready' },
+    { key: 'in_progress', label: 'In Progress',     value: m.in_progress,  cls: 'm-in_progress' },
+    { key: 'urgent',      label: 'Urgent ≤3 Days',  value: m.urgent,       cls: 'm-urgent' },
+    { key: 'handed_off',  label: '🤝 Handed Off',    value: m.handed_off,   cls: 'm-signed_off' }
   ];
   document.getElementById('metricStrip').innerHTML = cards.map(c => `
     <div class="metric-card ${c.cls} ${filterState.statusCard === c.key && c.key !== '' ? 'active' : ''}"
@@ -434,7 +344,6 @@ function renderMetrics() {
 }
 
 function setStatusCard(key) {
-  // Toggle off if already active, otherwise set it. Empty key = "Total" = clear.
   filterState.statusCard = (!key || filterState.statusCard === key) ? '' : key;
   updateMetricCardsUI();
   persistFilters();
@@ -455,14 +364,13 @@ function setDateChip(chip) {
   const fmt = d => d.toISOString().slice(0, 10);
 
   if (filterState.dateChip === chip) {
-    // Toggle off
     filterState.dateChip = ''; filterState.dateFrom = ''; filterState.dateTo = '';
   } else {
     filterState.dateChip = chip;
     if (chip === 'overdue') {
       filterState.dateFrom = ''; filterState.dateTo = fmt(addDays(today, -1));
     } else if (chip === 'this_week') {
-      const dow = today.getDay();                    // 0=Sun
+      const dow = today.getDay();
       const monday = addDays(today, dow === 0 ? -6 : 1 - dow);
       const sunday = addDays(monday, 6);
       filterState.dateFrom = fmt(monday); filterState.dateTo = fmt(sunday);
@@ -493,6 +401,8 @@ function updateDateChipsUI() {
   });
   const fast = document.getElementById('chip_fast_movein');
   if (fast) fast.classList.toggle('active', !!filterState.fastMoveIn);
+  const ho = document.getElementById('chip_handed_off');
+  if (ho) ho.classList.toggle('active', !!filterState.showHandedOff);
 }
 
 function toggleFastMoveInFilter() {
@@ -502,9 +412,15 @@ function toggleFastMoveInFilter() {
   applyFilters();
 }
 
+function toggleHandedOffFilter() {
+  filterState.showHandedOff = !filterState.showHandedOff;
+  updateDateChipsUI();
+  persistFilters();
+  applyFilters();
+}
+
 // ── Render table ─────────────────────────────────────────────────────────────
 function renderSortIndicators() {
-  // Highlight column-menu button when sort OR filter is active on that column
   document.querySelectorAll('.col-menu-btn').forEach(btn => {
     const k = btn.getAttribute('data-col');
     const sortActive   = sortState.key === k;
@@ -515,7 +431,6 @@ function renderSortIndicators() {
   });
 }
 
-// ── Unified column menu (sort + filter in one popover) ──────────────────────
 function toggleColumnMenu(event, key) {
   event.stopPropagation();
   const existing = document.getElementById('colFilterPop');
@@ -529,8 +444,7 @@ function toggleColumnMenu(event, key) {
   const current = new Set(filterState.columnFilters?.[key] || []);
   const sortActive = sortState.key === key;
 
-  // Column-appropriate sort labels
-  const sortLabels = (key === 'LeaseStartOn')
+  const sortLabels = (key === 'lease_start_on')
     ? { asc: 'Oldest → Newest', desc: 'Newest → Oldest' }
     : (key === 'Payment' || key === 'Status' || key === 'HOA')
       ? { asc: 'Sort ascending', desc: 'Sort descending' }
@@ -615,7 +529,7 @@ function _closeColFilterOnOutside(e) {
 
 function render() {
   renderSortIndicators();
-  renderMetrics();  // keep counts live (they don't change from filters, but layout re-highlights)
+  renderMetrics();
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   currentPage = Math.min(currentPage, totalPages);
@@ -623,11 +537,12 @@ function render() {
   const end   = Math.min(start + pageSize, total);
   const page  = filtered.slice(start, end);
 
-  const totalRepairs = filtered.reduce((n, r) => n + (r.UnfinishedImprovementsCount || 0), 0);
-  const homesWithRepairs = filtered.filter(r => (r.UnfinishedImprovementsCount || 0) > 0).length;
+  // Live repair counter: count from filtered repairs (open ones only).
+  const totalOpenRepairs = filtered.reduce((n, r) => n + r.repairs.filter(x => x.status !== 'done').length, 0);
+  const homesWithRepairs = filtered.filter(r => r.repairs.some(x => x.status !== 'done')).length;
   document.getElementById('tableCount').innerHTML =
     `<strong>${total}</strong> <span>home${total !== 1 ? 's' : ''}${allRows.length !== total ? ` of ${allRows.length}` : ''}</span>` +
-    ` <span class="count-sep">·</span> <span class="repair-count" title="${homesWithRepairs} home${homesWithRepairs !== 1 ? 's' : ''} with unfinished repairs">🔧 <strong>${totalRepairs}</strong> repair${totalRepairs !== 1 ? 's' : ''}</span>`;
+    ` <span class="count-sep">·</span> <span class="repair-count" title="${homesWithRepairs} home${homesWithRepairs !== 1 ? 's' : ''} with open repairs">🔧 <strong>${totalOpenRepairs}</strong> repair${totalOpenRepairs !== 1 ? 's' : ''}</span>`;
 
   const tbody = document.getElementById('homesBody');
   if (!total) {
@@ -635,7 +550,7 @@ function render() {
       <div class="empty-state">
         <div class="empty-icon">🏠</div>
         <div class="empty-title">${allRows.length ? 'No matches' : 'No homes yet'}</div>
-        <div class="empty-sub">${allRows.length ? 'Clear filters to see more' : 'Ask admin to upload a BigQuery CSV in Manage'}</div>
+        <div class="empty-sub">${allRows.length ? 'Clear filters to see more' : 'Ask admin to upload BigQuery exports in Manage'}</div>
       </div>
     </td></tr>`;
     renderPagination(0, 0, 0, 1);
@@ -647,44 +562,51 @@ function render() {
 }
 
 function rowHtml(r) {
-  const ctx = r._ctx;
-  const status = r._status;
-  const statusLabel = labelForStatus(status);
-  const clickableStatus = status === 'postponed' || status === 'grant_access';
-  const expSet = expanded.get(r.HomeId) || new Set();
+  const ctx = r.context || {};
+  const d = r.derived;
+  const state = d.derived_ready_state;
+  const stateLabel = labelForState(state);
+  const expSet = expanded.get(r.home_id) || new Set();
 
-  const linkHref = r.AdminLink || `https://foundation.bln.hm/homes/${r.HomeId}`;
-  const hasCsvRepairs = (r.UnfinishedImprovementsCount ?? 0) > 0;
+  const linkHref = d.admin_link;
+  const openRepairs = r.repairs.filter(x => x.status !== 'done');
+  const hasRepairs = openRepairs.length > 0;
   const statusOpen  = expSet.has('status');
   const repairsOpen = expSet.has('repairs');
   const paymentOpen = expSet.has('payment');
   const hasExpansion = statusOpen || repairsOpen || paymentOpen;
 
-  const paymentBadge = paymentBadgeHtml(r.PaymentStatus, r.HomeId, paymentOpen);
-  const hoaBadge     = hoaBadgeHtml(r.HasHoa, r.HoaIsNotified);
+  const paymentBadge = paymentBadgeHtml(d.payment_status, r.home_id, paymentOpen, d.payment_blocking_move_in);
+  const hoaBadge     = hoaBadgeHtml(r.has_hoa, r.hoa_is_notified);
+  const handedOff    = !!ctx.handed_off_to_concierge;
+
+  const fastFlag = d.is_fast_move_in
+    ? ` <span class="fast-moveIn-flag" data-tip="Fast Move-In" onclick="toggleExpansion(${r.home_id}, 'payment')">⚡</span>` : '';
+  const critFlag = (d.business_days_to_lease_start != null && d.business_days_to_lease_start <= 3)
+    ? ` <span class="fast-moveIn-flag critical" data-tip="Critical — ${d.business_days_to_lease_start} biz day${d.business_days_to_lease_start === 1 ? '' : 's'} left" onclick="toggleExpansion(${r.home_id}, 'payment')">🚨</span>` : '';
+  const handoffFlag = handedOff ? ` <span class="lease-type-tag" title="Handed off to concierge">🤝</span>` : '';
 
   const mainRow = `
     <tr class="${hasExpansion ? 'expanded' : ''}">
       <td>
-        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.Address || '—')}</a>${(r.IsFastMoveIn === 1 || r.IsFastMoveIn === true) ? ` <span class="fast-moveIn-flag" data-tip="Fast Move-In" onclick="toggleExpansion(${r.HomeId}, 'payment')">⚡</span>` : ''}${(r.BusinessDaysToLeaseStart != null && r.BusinessDaysToLeaseStart <= 3) ? ` <span class="fast-moveIn-flag critical" data-tip="Critical — ${r.BusinessDaysToLeaseStart} biz day${r.BusinessDaysToLeaseStart === 1 ? '' : 's'} left" onclick="toggleExpansion(${r.HomeId}, 'payment')">🚨</span>` : ''}
-        ${r.LeaseType ? `<div style="margin-top:3px"><span class="lease-type-tag">${escapeHtml(r.LeaseType)}</span></div>` : ''}
-        ${r.MoveInSpecialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.MoveInSpecialist)}</div>` : ''}
+        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.address || '—')}</a>${fastFlag}${critFlag}${handoffFlag}
+        ${r.is_revised ? `<div style="margin-top:3px"><span class="lease-type-tag">Revised</span></div>` : ''}
+        ${r.move_in_specialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.move_in_specialist)}</div>` : ''}
       </td>
-      <td style="font-size:12px">${escapeHtml(r.ResidentName || '—')}</td>
-      <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${formatDateNumeric(r.LeaseStartOn)}</td>
+      <td style="font-size:12px">${escapeHtml(r.resident_name || '—')}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${formatDateNumeric(r.lease_start_on)}</td>
       <td>${paymentBadge}</td>
       <td>${hoaBadge}</td>
-      <td style="font-size:11px;color:var(--muted)">${escapeHtml(r.ImprovementsSpecialist || '—')}</td>
+      <td style="font-size:11px;color:var(--muted)">${escapeHtml(r.improvements_specialist || '—')}</td>
       <td>
-        <span class="status-badge status-${status} ${clickableStatus ? 'clickable' : ''} ${statusOpen ? 'active' : ''}"
-              ${clickableStatus ? `onclick="toggleExpansion(${r.HomeId}, 'status')"` : ''}>
-          ${statusLabel}
+        <span class="status-badge status-${state} ${statusOpen ? 'active' : ''}">
+          ${stateLabel}
         </span>
       </td>
       <td>
-        ${hasCsvRepairs ? `
-          <span class="row-action ${repairsOpen ? 'active' : ''}" onclick="toggleExpansion(${r.HomeId}, 'repairs')">
-            🔧 ${r.UnfinishedImprovementsCount}
+        ${hasRepairs ? `
+          <span class="row-action ${repairsOpen ? 'active' : ''}" onclick="toggleExpansion(${r.home_id}, 'repairs')">
+            🔧 ${openRepairs.length}
           </span>
         ` : ''}
       </td>
@@ -695,49 +617,70 @@ function rowHtml(r) {
 
   let expInner = '';
   if (repairsOpen) {
-    const items = parseRepairs(r.AllUnfinishedDetails || r.UnfinishedGroupDetails);
-    const listHtml = items.length
-      ? `<div class="repairs-grid">${items.map(it => it.id
-          ? `<a class="repair-card" href="https://foundation.bln.hm/maintenance/${it.id}" target="_blank" rel="noopener">
-               <span class="repair-id">#${it.id}</span>
-               <span>${escapeHtml(it.label)}</span>
-               <span class="repair-ext">↗</span>
-             </a>`
-          : `<span class="repair-card">${escapeHtml(it.label)}</span>`
-        ).join('')}</div>`
-      : `<div class="faint">${r.UnfinishedImprovementsCount} unfinished improvements</div>`;
-    const note = ctx?.repairs_context
-      ? `<div class="repairs-note">${escapeHtml(ctx.repairs_context)}</div>` : '';
-    expInner += `
-      <div class="exp-section">
-        <div class="exp-header">
-          <span class="exp-label">🔧 Repairs</span>
-          <button class="exp-close" onclick="toggleExpansion(${r.HomeId}, 'repairs')" aria-label="Close">✕</button>
-        </div>
-        <div class="exp-body">${listHtml}${note}</div>
-      </div>
-    `;
+    expInner += repairsPanelHtml(r);
   }
   if (paymentOpen) {
     expInner += paymentPanelHtml(r);
   }
   if (statusOpen) {
-    const title = status === 'postponed' ? 'Postponed' : 'Grant Access — Expectations';
-    const body  = status === 'postponed'
-      ? (ctx?.postpone_reason || ctx?.repairs_context || '—')
-      : (ctx?.expectations    || ctx?.repairs_context || '—');
     expInner += `
       <div class="exp-section">
         <div class="exp-header">
-          <span class="exp-label">${title}</span>
-          <button class="exp-close" onclick="toggleExpansion(${r.HomeId}, 'status')" aria-label="Close">✕</button>
+          <span class="exp-label">Status</span>
+          <button class="exp-close" onclick="toggleExpansion(${r.home_id}, 'status')" aria-label="Close">✕</button>
         </div>
-        <div class="exp-body">${escapeHtml(body)}</div>
+        <div class="exp-body">${escapeHtml(ctx.repairs_context || ctx.expectations || ctx.postpone_reason || '—')}</div>
       </div>
     `;
   }
 
   return mainRow + `<tr class="expansion"><td colspan="8"><div class="exp-inner">${expInner}</div></td></tr>`;
+}
+
+function repairsPanelHtml(r) {
+  const ctx = r.context || {};
+  const items = r.repairs;
+  const cards = items.map(it => {
+    const open = it.status !== 'done';
+    const cat  = it.repair_category
+      ? `<span class="repair-cat" style="font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;background:var(--surface2);color:var(--muted);margin-right:4px">${escapeHtml(it.repair_category)}</span>`
+      : '';
+    const assess = it.repair_assessment
+      ? `<span class="repair-cat ${it.repair_assessment === 'Required' ? 'mini-err' : 'mini-warn'}" style="font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;margin-right:4px">${escapeHtml(it.repair_assessment)}</span>`
+      : '';
+    const cost = it.repair_estimated_cost != null
+      ? `<span style="font-size:11px;color:var(--muted)">$${Number(it.repair_estimated_cost).toLocaleString()}</span>`
+      : `<span class="mini-err" style="font-size:11px;padding:1px 5px;border-radius:3px">✗ No cost</span>`;
+    const post = it.is_post_move_in
+      ? `<span class="badge-post-move-in" title="Created after lease start">⚠ Post-move-in</span>`
+      : '';
+    const statusTag = `<span class="repair-status-tag status-${open ? 'open' : 'done'}" style="font-size:10px;padding:1px 5px;border-radius:3px;background:${open ? 'var(--amber-dim)' : 'var(--green-dim)'};color:${open ? 'var(--amber)' : 'var(--green)'}">${escapeHtml(it.status)}</span>`;
+
+    const inner = `
+      <span class="repair-id">#${escapeHtml(String(it.maintenance_id))}</span>
+      <span style="flex:1;min-width:0">
+        <div>${cat}${assess}${escapeHtml(it.repair_summary || '—')}</div>
+        <div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${statusTag} ${cost} ${post}</div>
+      </span>
+      <span class="repair-ext">↗</span>`;
+    return `<a class="repair-card" href="https://foundation.bln.hm/maintenance/${it.maintenance_id}" target="_blank" rel="noopener">${inner}</a>`;
+  });
+
+  const list = cards.length
+    ? `<div class="repairs-grid">${cards.join('')}</div>`
+    : `<div class="faint">No repairs.</div>`;
+  const note = ctx.repairs_context
+    ? `<div class="repairs-note">${escapeHtml(ctx.repairs_context)}</div>` : '';
+
+  return `
+    <div class="exp-section">
+      <div class="exp-header">
+        <span class="exp-label">🔧 Repairs (${items.length})</span>
+        <button class="exp-close" onclick="toggleExpansion(${r.home_id}, 'repairs')" aria-label="Close">✕</button>
+      </div>
+      <div class="exp-body">${list}${note}</div>
+    </div>
+  `;
 }
 
 function toggleExpansion(homeId, kind) {
@@ -781,56 +724,29 @@ function changePageSize() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function deriveStatus(h, ctx) {
-  // 1. Slack context wins if present
-  if (ctx?.status) return ctx.status;
-
-  // 2. CSV fallback — BUT only trust milestone dates that belong to the CURRENT lease.
-  //    BigQuery sometimes carries over LastMoveInCompleted/LastMoveInReady from a
-  //    previous lease. We only treat them as current if >= LeaseStartOn.
-  if (isCurrentLeaseDate(h.MoveInCompleted, h.LeaseStartOn)) return 'signed_off';
-  return 'in_progress';
-}
-
-// Returns true if `milestoneDate` is a real event in the CURRENT lease cycle.
-// Guards against stale BigQuery rows where Last* fields point at a previous lease.
-function isCurrentLeaseDate(milestoneDate, leaseStartOn) {
-  if (!milestoneDate) return false;
-  if (!leaseStartOn) return false; // no lease to anchor against → don't trust
-  const m = new Date(milestoneDate);
-  const l = new Date(leaseStartOn);
-  if (isNaN(m) || isNaN(l)) return false;
-  // Compare calendar days so an on-the-day match still counts
-  return startOfDay(m) >= startOfDay(l);
-}
-
-function labelForStatus(s) {
+function labelForState(s) {
   return ({
-    ready: 'Ready', postponed: 'Postponed', grant_access: 'Grant Access',
-    signed_off: 'Signed Off', in_progress: 'In Progress'
+    ready: 'Ready',
+    in_progress: 'In Progress',
+    urgent: 'Urgent'
   })[s] || 'Unknown';
 }
 
 function paymentPanelHtml(r) {
   const money = v => (v == null || v === '' || isNaN(v)) ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const yesNo = v => v === 1 || v === true ? 'Yes' : v === 0 || v === false ? 'No' : '—';
-  const dueDate   = r.PaymentDueDate ? formatDateNumeric(r.PaymentDueDate) : formatDateNumeric(r.LeaseStartOn);
-  const leaseStart = formatDateNumeric(r.LeaseStartOn);
-  const leaseExecuted = r.LeaseExecutedOn ? formatDateNumeric(r.LeaseExecutedOn) : '—';
-  const daysSigned = r.DaysToLeaseStart;
-  const daysSignedLabel = (daysSigned == null || daysSigned === '')
-    ? '—'
-    : `${daysSigned} day${daysSigned === 1 ? '' : 's'}`;
-  const isFast = r.IsFastMoveIn === 1 || r.IsFastMoveIn === true;
-  const bizDays = r.BusinessDaysToLeaseStart;
+  const yesNo = v => v === true ? 'Yes' : v === false ? 'No' : '—';
+  const leaseStart    = formatDateNumeric(r.lease_start_on);
+  const leaseExecuted = r.lease_executed_on ? formatDateNumeric(r.lease_executed_on) : '—';
+  const isFast = r.derived.is_fast_move_in;
+  const bizDays = r.derived.business_days_to_lease_start;
 
   const fastBanner = isFast
     ? `<div class="fast-moveIn-banner">
-         ⚡ <strong>Fast Move-In</strong> — only ${bizDays != null ? bizDays : '≤7'} business day${bizDays === 1 ? '' : 's'} until lease start. Resident must <strong>wire</strong> the payment; ACH won't clear in time.
+         ⚡ <strong>Fast Move-In</strong> — only ${bizDays != null ? bizDays : '≤5'} business day${bizDays === 1 ? '' : 's'} until lease start. Resident must <strong>wire</strong> the payment; ACH won't clear in time.
        </div>`
     : '';
 
-  const items = (r.BalanceDetail || '')
+  const items = (r.balance_detail || '')
     .split('||').map(s => s.trim()).filter(Boolean);
   const breakdown = items.length
     ? `<div class="pay-breakdown">${items.map(it => `<div class="pay-breakdown-row">${escapeHtml(it)}</div>`).join('')}</div>`
@@ -840,20 +756,19 @@ function paymentPanelHtml(r) {
     <div class="exp-section">
       <div class="exp-header">
         <span class="exp-label">📝 Lease & Payment</span>
-        <button class="exp-close" onclick="toggleExpansion(${r.HomeId}, 'payment')" aria-label="Close">✕</button>
+        <button class="exp-close" onclick="toggleExpansion(${r.home_id}, 'payment')" aria-label="Close">✕</button>
       </div>
       <div class="exp-body">
         ${fastBanner}
         <div class="pay-grid">
           <div class="pay-cell"><div class="pay-label">Lease signed</div><div class="pay-value">${leaseExecuted}</div></div>
           <div class="pay-cell"><div class="pay-label">Lease start</div><div class="pay-value">${leaseStart}</div></div>
-          <div class="pay-cell"><div class="pay-label">Signed → move-in</div><div class="pay-value">${daysSignedLabel}${bizDays != null ? ` <span class="faint">(${bizDays} biz)</span>` : ''}</div></div>
-          <div class="pay-cell"><div class="pay-label">Payment due</div><div class="pay-value">${dueDate}${isFast ? ' <span class="faint">(immediately)</span>' : ''}</div></div>
-          <div class="pay-cell"><div class="pay-label">Monthly rent</div><div class="pay-value">${money(r.RentAmount)}</div></div>
-          <div class="pay-cell"><div class="pay-label">Deposit</div><div class="pay-value">${money(r.DepositAmount)}${r.DepositType ? ` <span class="faint">· ${escapeHtml(r.DepositType)}</span>` : ''}</div></div>
-          <div class="pay-cell"><div class="pay-label">Autopay</div><div class="pay-value">${yesNo(r.EnrolledInAutoPay)}</div></div>
-          <div class="pay-cell"><div class="pay-label">Move-in payment status</div><div class="pay-value">${escapeHtml(r.MoveInPaymentStatus || '—')}</div></div>
-          <div class="pay-cell"><div class="pay-label">Rollup</div><div class="pay-value">${escapeHtml(r.PaymentStatus || '—')}</div></div>
+          <div class="pay-cell"><div class="pay-label">Biz days to start</div><div class="pay-value">${bizDays != null ? bizDays : '—'}</div></div>
+          <div class="pay-cell"><div class="pay-label">Monthly rent</div><div class="pay-value">${money(r.rent_amount)}</div></div>
+          <div class="pay-cell"><div class="pay-label">Deposit</div><div class="pay-value">${money(r.deposit_amount)}${r.deposit_type ? ` <span class="faint">· ${escapeHtml(r.deposit_type)}</span>` : ''}</div></div>
+          <div class="pay-cell"><div class="pay-label">Autopay</div><div class="pay-value">${yesNo(r.enrolled_in_auto_pay)}</div></div>
+          <div class="pay-cell"><div class="pay-label">Move-in payment status</div><div class="pay-value">${escapeHtml(r.move_in_payment_status || '—')}</div></div>
+          <div class="pay-cell"><div class="pay-label">Rollup</div><div class="pay-value">${escapeHtml(r.derived.payment_status || '—')}</div></div>
         </div>
         ${breakdown}
       </div>
@@ -861,42 +776,22 @@ function paymentPanelHtml(r) {
   `;
 }
 
-function paymentBadgeHtml(status, homeId, open) {
-  if (!status) return `<span class="mini-badge mini-none clickable ${open ? 'active' : ''}" onclick="toggleExpansion(${homeId}, 'payment')" title="Payment details">💲</span>`;
-  const isPaid = /all\s*paid/i.test(status);
-  const isPartial = /unpaid/i.test(status) && !/both/i.test(status);
-  const cls = isPaid ? 'mini-ok' : (isPartial ? 'mini-warn' : 'mini-err');
-  return `<span class="mini-badge ${cls} clickable ${open ? 'active' : ''}" onclick="toggleExpansion(${homeId}, 'payment')" title="Show payment details">💲 ${escapeHtml(status)}</span>`;
+function paymentBadgeHtml(payStatus, homeId, open, blocking) {
+  const map = {
+    all_paid:       { cls: 'mini-ok',   label: 'All paid' },
+    deposit_unpaid: { cls: 'mini-warn', label: 'Deposit unpaid' },
+    rent_unpaid:    { cls: 'mini-warn', label: 'Rent unpaid' },
+    both_unpaid:    { cls: 'mini-err',  label: 'Both unpaid' }
+  };
+  const cfg = map[payStatus] || { cls: 'mini-none', label: '—' };
+  const blockTag = blocking ? ' <span title="Blocking move-in">🚨</span>' : '';
+  return `<span class="mini-badge ${cfg.cls} clickable ${open ? 'active' : ''}" onclick="toggleExpansion(${homeId}, 'payment')" title="Show payment details">💲 ${escapeHtml(cfg.label)}${blockTag}</span>`;
 }
 
 function hoaBadgeHtml(hasHoa, notified) {
-  if (!hasHoa || hasHoa === 0) return `<span class="mini-badge mini-none">No HOA</span>`;
-  if (notified === 1) return `<span class="mini-badge mini-ok">Notified</span>`;
+  if (!hasHoa) return `<span class="mini-badge mini-none">No HOA</span>`;
+  if (notified) return `<span class="mini-badge mini-ok">Notified</span>`;
   return `<span class="mini-badge mini-warn">Not notified</span>`;
-}
-
-function parseRepairs(str) {
-  if (!str) return [];
-  return String(str).split('|').map(s => s.trim()).filter(Boolean).map(item => {
-    // New format: "id::cost::summary"  (cost may be empty)
-    // Legacy:     "id:summary"
-    if (item.includes('::')) {
-      const parts = item.split('::');
-      const id   = (parts[0] || '').trim();
-      const cost = (parts[1] || '').trim();
-      const label = parts.slice(2).join('::').trim();
-      return {
-        id:    /^\d+$/.test(id) ? id : null,
-        cost:  cost === '' || isNaN(cost) ? null : Number(cost),
-        label
-      };
-    }
-    const i = item.indexOf(':');
-    if (i === -1) return { id: null, cost: null, label: item };
-    const id = item.slice(0, i).trim();
-    const label = item.slice(i + 1).trim();
-    return { id: /^\d+$/.test(id) ? id : null, cost: null, label };
-  });
 }
 
 function formatDateNumeric(d) {

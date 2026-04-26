@@ -48,15 +48,8 @@
         <button class="chip-btn" id="chip_overdue"   onclick="setDateChip('overdue')">Overdue</button>
         <button class="chip-btn" id="chip_this_week" onclick="setDateChip('this_week')">This Week</button>
         <button class="chip-btn" id="chip_30_days"   onclick="setDateChip('30_days')">30 Days</button>
-        <button class="chip-btn" id="chip_fast_movein" onclick="toggleFastMoveInFilter()" title="Show only Fast Move-Ins (≤7 business days)">⚡ Fast</button>
-      </div>
-
-      <div class="lt-dropdown" id="leaseTypeDropdown">
-        <button type="button" class="select-input lt-toggle" id="leaseTypeToggle" onclick="toggleLeaseTypeMenu(event)">
-          <span id="leaseTypeLabel">Lease type</span>
-          <span class="lt-caret">▾</span>
-        </button>
-        <div class="lt-menu" id="leaseTypeMenu" hidden></div>
+        <button class="chip-btn" id="chip_fast_movein" onclick="toggleFastMoveInFilter()" title="Show only Fast Move-Ins (≤5 business days)">⚡ Fast</button>
+        <button class="chip-btn" id="chip_handed_off" onclick="toggleHandedOffFilter()" title="Include homes handed off to concierge">🤝 Handed off</button>
       </div>
 
       <select class="select-input" id="fRegion"><option value="">All regions</option></select>
@@ -82,7 +75,7 @@
             <tr>
               <th>Address<button type="button" class="col-menu-btn" data-col="Address" onclick="toggleColumnMenu(event, 'Address')" title="Sort & filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></button></th>
               <th>Resident<button type="button" class="col-menu-btn" data-col="Resident" onclick="toggleColumnMenu(event, 'Resident')" title="Sort & filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></button></th>
-              <th>Move-In<button type="button" class="col-menu-btn" data-col="LeaseStartOn" onclick="toggleColumnMenu(event, 'LeaseStartOn')" title="Sort & filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></button></th>
+              <th>Move-In<button type="button" class="col-menu-btn" data-col="lease_start_on" onclick="toggleColumnMenu(event, 'lease_start_on')" title="Sort & filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></button></th>
               <th>Payment<button type="button" class="col-menu-btn" data-col="Payment" onclick="toggleColumnMenu(event, 'Payment')" title="Sort & filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></button></th>
               <th>HOA<button type="button" class="col-menu-btn" data-col="HOA" onclick="toggleColumnMenu(event, 'HOA')" title="Sort & filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></button></th>
               <th>HQS<button type="button" class="col-menu-btn" data-col="HQS" onclick="toggleColumnMenu(event, 'HQS')" title="Sort & filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></button></th>
@@ -108,6 +101,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/assets/supabase.js"></script>
+<script src="/assets/dataSource.js"></script>
+<script src="/assets/derive.js"></script>
 <script src="/assets/nav.js"></script>
 <script src="/assets/dashboard.js"></script>
 </body>

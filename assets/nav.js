@@ -51,7 +51,7 @@ async function mountHeader({ page, session }) {
 async function updateHeaderCounts() {
   // Live homes count + Ready count, in parallel
   const [homesRes, readyRes] = await Promise.all([
-    sb.from('homes').select('"HomeId"', { count: 'exact', head: true }),
+    sb.from('homes').select('home_id', { count: 'exact', head: true }),
     sb.from('home_repair_context').select('home_id', { count: 'exact', head: true }).eq('status', 'ready')
   ]);
   const livePill = document.getElementById('pillLive');

@@ -30,7 +30,7 @@ async function loadReady() {
   // Read ready rows + join home address data
   const { data: ctxRows, error: ctxErr } = await sb
     .from('home_repair_context')
-    .select('home_id, status, lease_url, repairs_context, updated_at')
+    .select('home_id, status, repairs_context, updated_at')
     .eq('status', 'ready');
   if (ctxErr) { showToast('Failed: ' + ctxErr.message, 'error'); return; }
 
@@ -42,20 +42,20 @@ async function loadReady() {
   }
   const { data: homes, error: hErr } = await sb
     .from('homes')
-    .select('"HomeId","Address","Region","MoveInSpecialist","ResidentName","LeaseStartOn","AdminLink"')
-    .in('"HomeId"', ids);
+    .select('home_id, address, region, move_in_specialist, resident_name, lease_start_on, lease_id')
+    .in('home_id', ids);
   if (hErr) { showToast('Failed: ' + hErr.message, 'error'); return; }
 
-  const homeById = new Map((homes || []).map(h => [h.HomeId, h]));
+  const homeById = new Map((homes || []).map(h => [h.home_id, h]));
   readyHomes = ctxRows.map(c => ({
     ...c,
     home: homeById.get(c.home_id) || null
   })).filter(r => r.home);
 
-  // Sort by LeaseStartOn
+  // Sort by lease_start_on
   readyHomes.sort((a, b) => {
-    const da = a.home.LeaseStartOn ? new Date(a.home.LeaseStartOn).getTime() : Infinity;
-    const db = b.home.LeaseStartOn ? new Date(b.home.LeaseStartOn).getTime() : Infinity;
+    const da = a.home.lease_start_on ? new Date(a.home.lease_start_on).getTime() : Infinity;
+    const db = b.home.lease_start_on ? new Date(b.home.lease_start_on).getTime() : Infinity;
     return da - db;
   });
 
@@ -79,28 +79,30 @@ function render() {
 
   list.innerHTML = readyHomes.map(r => {
     const h = r.home;
-    const leaseDate = h.LeaseStartOn
-      ? new Date(h.LeaseStartOn).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    const leaseDate = h.lease_start_on
+      ? new Date(h.lease_start_on).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
       : '—';
-    const leaseHref = r.lease_url || h.AdminLink || `https://foundation.bln.hm/homes/${h.HomeId}`;
+    const leaseHref = h.lease_id
+      ? `https://admin.bln.hm/leases/${h.lease_id}`
+      : `https://foundation.bln.hm/homes/${h.home_id}`;
     return `
       <div class="card" style="margin-bottom:10px;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div style="flex:1;min-width:260px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
-            <span class="home-id">#${h.HomeId}</span>
-            <span style="font-size:14px;font-weight:600">${escapeHtml(h.Address || '—')}</span>
+            <span class="home-id">#${h.home_id}</span>
+            <span style="font-size:14px;font-weight:600">${escapeHtml(h.address || '—')}</span>
             <span class="status-badge status-ready">Ready</span>
           </div>
           <div style="font-size:11px;color:var(--muted)">
-            ${h.ResidentName ? escapeHtml(h.ResidentName) + ' · ' : ''}
-            ${h.MoveInSpecialist ? escapeHtml(h.MoveInSpecialist) + ' · ' : ''}
+            ${h.resident_name ? escapeHtml(h.resident_name) + ' · ' : ''}
+            ${h.move_in_specialist ? escapeHtml(h.move_in_specialist) + ' · ' : ''}
             Move-in ${leaseDate}
           </div>
           ${r.repairs_context ? `<div style="font-size:11px;color:var(--faint);margin-top:6px;line-height:1.5">${escapeHtml(r.repairs_context)}</div>` : ''}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <a class="btn btn-ghost" href="${escapeAttr(leaseHref)}" target="_blank" rel="noopener">Open Lease ↗</a>
-          <button class="btn btn-green btn-lg" onclick="markSignedOff(${h.HomeId})">✓ Mark Signed Off</button>
+          <button class="btn btn-green btn-lg" onclick="markSignedOff(${h.home_id})">✓ Mark Signed Off</button>
         </div>
       </div>
     `;
