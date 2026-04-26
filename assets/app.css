@@ -585,14 +585,14 @@ header.app-header {
 /* ── Repairs inline cards ── */
 .repairs-grid {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
 }
 .repair-card {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 5px 10px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--rsm);
@@ -600,14 +600,15 @@ header.app-header {
   color: var(--text);
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.3;
   transition: all .12s;
   min-width: 0;
+  width: 100%;
 }
 .repair-card:hover {
   border-color: var(--navy);
   background: var(--navy-dim);
   color: var(--navy);
-  transform: translateY(-1px);
 }
 .repair-card .repair-id {
   font-family: 'SF Mono', ui-monospace, Menlo, monospace;
@@ -615,15 +616,51 @@ header.app-header {
   font-weight: 700;
   color: var(--faint);
   background: var(--surface2);
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 3px;
   flex-shrink: 0;
 }
 .repair-card:hover .repair-id { background: #fff; color: var(--navy); }
+.repair-card .repair-cat {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface2);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.repair-card .repair-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repair-card .repair-status-tag {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.repair-card .status-open { background: var(--amber-dim); color: var(--amber); }
+.repair-card .status-done { background: var(--green-dim); color: var(--green); }
+.repair-card .repair-cost {
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.repair-card .repair-cost-missing {
+  background: var(--red-dim);
+  color: var(--red);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
 .repair-card .repair-ext {
   font-size: 10px;
   color: var(--faint);
-  margin-left: 2px;
+  flex-shrink: 0;
 }
 .repairs-note {
   margin-top: 10px;

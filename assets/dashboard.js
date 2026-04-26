@@ -643,25 +643,24 @@ function repairsPanelHtml(r) {
   const cards = items.map(it => {
     const open = it.status !== 'done';
     const cat  = it.repair_category
-      ? `<span class="repair-cat" style="font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;background:var(--surface2);color:var(--muted);margin-right:4px">${escapeHtml(it.repair_category)}</span>`
+      ? `<span class="repair-cat">${escapeHtml(it.repair_category)}</span>`
       : '';
     const assess = it.repair_assessment
-      ? `<span class="repair-cat ${it.repair_assessment === 'Required' ? 'mini-err' : 'mini-warn'}" style="font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;margin-right:4px">${escapeHtml(it.repair_assessment)}</span>`
+      ? `<span class="repair-cat repair-assess ${it.repair_assessment === 'Required' ? 'mini-err' : 'mini-warn'}">${escapeHtml(it.repair_assessment)}</span>`
       : '';
     const cost = it.repair_estimated_cost != null
-      ? `<span style="font-size:11px;color:var(--muted)">$${Number(it.repair_estimated_cost).toLocaleString()}</span>`
-      : `<span class="mini-err" style="font-size:11px;padding:1px 5px;border-radius:3px">✗ No cost</span>`;
+      ? `<span class="repair-cost">$${Number(it.repair_estimated_cost).toLocaleString()}</span>`
+      : `<span class="repair-cost repair-cost-missing">Not priced</span>`;
     const post = it.is_post_move_in
       ? `<span class="badge-post-move-in" title="Created after lease start">⚠ Post-move-in</span>`
       : '';
-    const statusTag = `<span class="repair-status-tag status-${open ? 'open' : 'done'}" style="font-size:10px;padding:1px 5px;border-radius:3px;background:${open ? 'var(--amber-dim)' : 'var(--green-dim)'};color:${open ? 'var(--amber)' : 'var(--green)'}">${escapeHtml(it.status)}</span>`;
+    const statusTag = `<span class="repair-status-tag status-${open ? 'open' : 'done'}">${escapeHtml(it.status)}</span>`;
 
     const inner = `
       <span class="repair-id">#${escapeHtml(String(it.maintenance_id))}</span>
-      <span style="flex:1;min-width:0">
-        <div>${cat}${assess}${escapeHtml(it.repair_summary || '—')}</div>
-        <div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${statusTag} ${cost} ${post}</div>
-      </span>
+      ${cat}${assess}
+      <span class="repair-title">${escapeHtml(it.repair_summary || '—')}</span>
+      ${statusTag}${cost}${post}
       <span class="repair-ext">↗</span>`;
     return `<a class="repair-card" href="https://foundation.bln.hm/maintenance/${it.maintenance_id}" target="_blank" rel="noopener">${inner}</a>`;
   });

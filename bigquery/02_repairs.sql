@@ -36,5 +36,5 @@ WHERE m.RequestCategory IN (
       )
   AND (m.RequestCategory = 'QA' OR m.Trade NOT IN ('FieldOperations', 'Inspection'))
   AND (m.ConsentStatus IN ('Approved', 'NotRequired') OR m.Assessment = 'Required')
-  AND (m.ClosedOn IS NULL OR DATE(m.ClosedOn) > c.LeaseStartOn)
+  AND m.ClosedOn IS NULL
 ORDER BY home_id, repair_created_on;

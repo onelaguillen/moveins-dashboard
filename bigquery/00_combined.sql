@@ -294,7 +294,7 @@ stream_repairs AS (
         )
     AND (m.RequestCategory = 'QA' OR m.Trade NOT IN ('FieldOperations', 'Inspection'))
     AND (m.ConsentStatus IN ('Approved', 'NotRequired') OR m.Assessment = 'Required')
-    AND (m.ClosedOn IS NULL OR DATE(m.ClosedOn) > c.LeaseStartOn)
+    AND m.ClosedOn IS NULL
 ),
 
 -- ── Stream 3: pro_services — Maintenance rows created on/after lease start ──
