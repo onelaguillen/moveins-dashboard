@@ -494,14 +494,45 @@ function parseCSVLine(line) {
   return result;
 }
 
+// Allowed columns per table — anything else (e.g. union NULL padding columns
+// from the combined CSV) gets dropped before insert.
+const TABLE_COLUMNS = {
+  homes: new Set([
+    'home_id','lease_id','resident_id','report_date','address','region',
+    'resident_name','intercom_id',
+    'move_in_specialist','move_in_specialist_id','concierge','concierge_id',
+    'improvements_specialist','improvements_specialist_id',
+    'has_hoa','hoa_is_notified',
+    'lease_start_on','lease_executed_on','original_executed_on','is_revised',
+    'current_milestone','current_milestone_on','move_in_ready','move_in_completed',
+    'rent_amount','deposit_amount','deposit_type','paid_rent','received_rent',
+    'processing_receive_rent','enrolled_in_auto_pay','move_in_payment_status',
+    'balances_unpaid','deposit_unpaid','rent_unpaid','has_deposit','has_rent','balance_detail',
+    'had_qa_inspection','qa_inspection_count',
+    'is_satisfied','csat_response_count','csat_status','avg_rating',
+    'csat_requester_name','csat_created_on','csat_comment',
+    'last_synced_at'
+  ]),
+  repairs: new Set([
+    'maintenance_id','home_id','repair_summary','repair_estimated_cost',
+    'repair_assessment','repair_category','repair_created_on','last_synced_at'
+  ]),
+  pro_services: new Set([
+    'pro_service_id','home_id','service_name','service_category','service_status',
+    'service_created_on','service_completed_on','last_synced_at'
+  ])
+};
+
 function coerceRow(raw, kind) {
   const schema = TABLE_SCHEMAS[kind];
-  if (!schema) return raw;
+  const cols   = TABLE_COLUMNS[kind];
+  if (!schema || !cols) return raw;
   const intSet  = new Set(schema.int);
   const flSet   = new Set(schema.float);
   const boolSet = new Set(schema.bool);
   const out = {};
   for (const [k, v] of Object.entries(raw)) {
+    if (!cols.has(k)) continue; // strip union-padding columns from combined CSV
     const val = (v === '' || v == null) ? null : v;
     if (val == null) { out[k] = null; continue; }
     if (intSet.has(k))   { const n = parseInt(val, 10);  out[k] = isNaN(n) ? null : n; continue; }
