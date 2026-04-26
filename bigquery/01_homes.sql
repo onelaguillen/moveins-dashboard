@@ -60,19 +60,22 @@ payments_summary AS (
   GROUP BY HomeId, LeaseId
 ),
 
+qa_parent AS (
+  SELECT HomeId, MaintenanceId AS QAGroupId, CreatedOn
+  FROM `dwh.Maintenance`
+  WHERE RequestCategory = 'QA'
+    AND Summary = 'Quality Assurance'
+    AND HomeId IN (SELECT HomeId FROM cohort)
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY HomeId ORDER BY CreatedOn DESC) = 1
+),
 qa_summary AS (
   SELECT
-    m.HomeId,
-    COUNT(DISTINCT m.MaintenanceId)        AS QAInspectionCount,
-    COUNT(DISTINCT m.MaintenanceId) > 0    AS HadQAInspection
-  FROM `dwh.Maintenance` m
-  WHERE m.HomeId IN (SELECT HomeId FROM cohort)
-    AND (m.RequestCategory = 'QA'
-         OR REGEXP_CONTAINS(UPPER(m.Summary), r'POST[\s\-]*IMPROVEMENT[S]?[\s\-]*Q[\s\-]?A')
-         OR REGEXP_CONTAINS(UPPER(m.Summary), r'PRE[\s\-]*MOVE[\s\-]*IN[\s\-]*Q[\s\-]?A')
-         OR UPPER(m.Summary) LIKE '%QA INSPECTION%')
-    AND m.ClosedOn IS NOT NULL
-  GROUP BY m.HomeId
+    p.HomeId,
+    p.QAGroupId,
+    COUNT(c.MaintenanceId) AS QAChildCount
+  FROM qa_parent p
+  LEFT JOIN `dwh.Maintenance` c ON c.GroupId = p.QAGroupId
+  GROUP BY p.HomeId, p.QAGroupId
 ),
 
 csat_summary AS (
@@ -139,8 +142,9 @@ SELECT
   SAFE_CAST(p.HasDeposit    AS BOOL)       AS has_deposit,
   SAFE_CAST(p.HasRent       AS BOOL)       AS has_rent,
   p.BalanceDetail                          AS balance_detail,
-  COALESCE(qa.HadQAInspection, FALSE)      AS had_qa_inspection,
-  COALESCE(qa.QAInspectionCount, 0)        AS qa_inspection_count,
+  qa.QAGroupId                             AS qa_group_id,
+  qa.QAGroupId IS NOT NULL                 AS had_qa_inspection,
+  COALESCE(qa.QAChildCount, 0)             AS qa_inspection_count,
   SAFE_CAST(cs.IsSatisfied AS BOOL)        AS is_satisfied,
   cs.CSATResponseCount                     AS csat_response_count,
   cs.CSATStatus                            AS csat_status,

@@ -585,11 +585,12 @@ function rowHtml(r) {
   const critFlag = (d.business_days_to_lease_start != null && d.business_days_to_lease_start <= 3)
     ? ` <span class="fast-moveIn-flag critical" data-tip="Critical — ${d.business_days_to_lease_start} biz day${d.business_days_to_lease_start === 1 ? '' : 's'} left" onclick="toggleExpansion(${r.home_id}, 'payment')">🚨</span>` : '';
   const handoffFlag = handedOff ? ` <span class="lease-type-tag" title="Handed off to concierge">🤝</span>` : '';
+  const noQaFlag    = !r.qa_group_id ? ` <span class="no-qa-flag" title="No QA inspection record on file">NO QA</span>` : '';
 
   const mainRow = `
     <tr class="${hasExpansion ? 'expanded' : ''}">
       <td>
-        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.address || '—')}</a>${fastFlag}${critFlag}${handoffFlag}
+        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.address || '—')}</a>${fastFlag}${critFlag}${handoffFlag}${noQaFlag}
         ${r.is_revised ? `<div style="margin-top:3px"><span class="lease-type-tag">Revised</span></div>` : ''}
         ${r.move_in_specialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.move_in_specialist)}</div>` : ''}
       </td>
@@ -629,7 +630,7 @@ function rowHtml(r) {
           <span class="exp-label">Status</span>
           <button class="exp-close" onclick="toggleExpansion(${r.home_id}, 'status')" aria-label="Close">✕</button>
         </div>
-        <div class="exp-body">${escapeHtml(ctx.repairs_context || ctx.expectations || ctx.postpone_reason || '—')}</div>
+        <div class="exp-body exp-body-text">${escapeHtml(ctx.repairs_context || ctx.expectations || ctx.postpone_reason || '—')}</div>
       </div>
     `;
   }
@@ -671,10 +672,14 @@ function repairsPanelHtml(r) {
   const note = ctx.repairs_context
     ? `<div class="repairs-note">${escapeHtml(ctx.repairs_context)}</div>` : '';
 
+  const qaLink = r.qa_group_id
+    ? ` <a class="qa-group-link" href="https://admin.bln.hm/maintenance/${r.qa_group_id}" target="_blank" rel="noopener" title="Open QA group on Foundation">QA #${r.qa_group_id} ↗</a>`
+    : ` <span class="no-qa-flag" style="margin-left:6px">NO QA</span>`;
+
   return `
     <div class="exp-section">
       <div class="exp-header">
-        <span class="exp-label">🔧 Repairs (${items.length})</span>
+        <span class="exp-label">🔧 Repairs (${items.length})${qaLink}</span>
         <button class="exp-close" onclick="toggleExpansion(${r.home_id}, 'repairs')" aria-label="Close">✕</button>
       </div>
       <div class="exp-body">${list}${note}</div>
@@ -747,8 +752,11 @@ function paymentPanelHtml(r) {
 
   const items = (r.balance_detail || '')
     .split('||').map(s => s.trim()).filter(Boolean);
+  const linkifyBalanceId = (txt) =>
+    escapeHtml(txt).replace(/ID:\s*(\d+)/g,
+      (_, id) => `ID: <a href="https://admin.bln.hm/accounting/balance/${id}" target="_blank" rel="noopener">${id}</a>`);
   const breakdown = items.length
-    ? `<div class="pay-breakdown">${items.map(it => `<div class="pay-breakdown-row">${escapeHtml(it)}</div>`).join('')}</div>`
+    ? `<div class="pay-breakdown">${items.map(it => `<div class="pay-breakdown-row">${linkifyBalanceId(it)}</div>`).join('')}</div>`
     : `<div class="faint" style="font-size:12px">All balances paid or no detail available.</div>`;
 
   return `

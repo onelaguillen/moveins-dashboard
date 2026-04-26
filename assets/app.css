@@ -116,7 +116,7 @@
 
 .pay-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px 18px; margin-bottom: 12px;
+  gap: 10px 18px;
 }
 .pay-cell { display: flex; flex-direction: column; gap: 2px; }
 .pay-label {
@@ -126,8 +126,10 @@
 .pay-value { font-size: 13px; color: var(--text); font-weight: 500; }
 .pay-breakdown {
   display: flex; flex-direction: column; gap: 6px;
-  padding-top: 10px; border-top: 1px solid var(--border);
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
 }
+.pay-breakdown-row a { color: var(--navy); font-weight: 600; text-decoration: none; }
+.pay-breakdown-row a:hover { text-decoration: underline; }
 .pay-breakdown-row {
   font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace;
   padding: 6px 8px; background: var(--surface2); border-radius: 6px;
@@ -819,7 +821,33 @@ tr.expansion td {
   line-height: 1;
 }
 .exp-close:hover { background: var(--surface2); color: var(--text); }
-.exp-body { font-size: 12px; color: var(--text); line-height: 1.6; white-space: pre-wrap; }
+.exp-body { font-size: 12px; color: var(--text); line-height: 1.6; }
+.exp-body.exp-body-text { white-space: pre-wrap; }
+
+.no-qa-flag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid var(--red-border);
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.qa-group-link {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--navy);
+  text-decoration: none;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--navy-dim, var(--surface2));
+}
+.qa-group-link:hover { text-decoration: underline; }
 .exp-body .sublabel { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 10px; margin-bottom: 4px; }
 .exp-body .sublabel:first-child { margin-top: 0; }
 

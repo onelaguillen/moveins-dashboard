@@ -18,7 +18,7 @@ let pendingUploads = [];
 const TABLE_SCHEMAS = {
   homes: {
     int:   ['home_id','lease_id','resident_id','move_in_specialist_id','concierge_id',
-            'improvements_specialist_id','qa_inspection_count','csat_response_count',
+            'improvements_specialist_id','qa_group_id','qa_inspection_count','csat_response_count',
             'balances_unpaid'],
     float: ['rent_amount','deposit_amount','paid_rent','received_rent',
             'processing_receive_rent','avg_rating'],
@@ -508,7 +508,7 @@ const TABLE_COLUMNS = {
     'rent_amount','deposit_amount','deposit_type','paid_rent','received_rent',
     'processing_receive_rent','enrolled_in_auto_pay','move_in_payment_status',
     'balances_unpaid','deposit_unpaid','rent_unpaid','has_deposit','has_rent','balance_detail',
-    'had_qa_inspection','qa_inspection_count',
+    'qa_group_id','had_qa_inspection','qa_inspection_count',
     'is_satisfied','csat_response_count','csat_status','avg_rating',
     'csat_requester_name','csat_created_on','csat_comment',
     'last_synced_at'

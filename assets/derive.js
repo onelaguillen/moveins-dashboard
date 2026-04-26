@@ -58,10 +58,9 @@ function paymentBlockingMoveIn(home, bizDays, payStatus) {
 }
 
 function qaStatus(home) {
-  // Pending counts as failure for readiness.
-  if (home.had_qa_inspection === true && home.qa_inspection_count > 0) return 'passed';
-  if (home.had_qa_inspection === false || !home.qa_inspection_count) return 'pending';
-  return 'pending';
+  // QA "passed" = the QA group record exists in Foundation. Children (linked
+  // repair tickets) are tracked separately as repairs — not a QA failure.
+  return home.qa_group_id ? 'done' : 'no_qa';
 }
 
 function csatStatus(home) {
@@ -94,7 +93,7 @@ function readinessChecks(home, repairs) {
   const paymentsOk = home.derived?.payment_status === 'all_paid'
     || paymentStatus(home) === 'all_paid';
   const autopayOk = home.enrolled_in_auto_pay === true;
-  const qaOk = qaStatus(home) === 'passed';
+  const qaOk = qaStatus(home) === 'done';
   const leaseExecutedOk = !!home.lease_executed_on;
 
   return [
