@@ -16,7 +16,10 @@ CREATE POLICY "Authenticated Belong users can read files"
   FOR SELECT
   USING (
     auth.role() = 'authenticated'
-    AND auth.jwt() ->> 'email' LIKE '%@belonghome.com'
+    AND (
+      auth.jwt() ->> 'email' LIKE '%@belonghome.com'
+      OR auth.jwt() ->> 'email' LIKE '%@belong.pe'
+    )
   );
 
 -- ============================================================

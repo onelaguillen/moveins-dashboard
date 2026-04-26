@@ -102,56 +102,23 @@ CREATE TABLE IF NOT EXISTS homes (
 );
 
 -- ============================================================
--- 2. REPAIRS TABLE
---    Claude's analysis layer from Slack.
---    Additive — Claude writes repair progress here per home.
---    Multiple repair rows can exist per home.
--- ============================================================
-CREATE TABLE IF NOT EXISTS repairs (
-  id                UUID          DEFAULT gen_random_uuid() PRIMARY KEY,
-  home_id           INTEGER       NOT NULL REFERENCES homes("HomeId") ON DELETE CASCADE,
-
-  -- Repair details (extracted by Claude from Slack)
-  summary           TEXT,           -- e.g. "HVAC not cooling"
-  trade             TEXT,           -- e.g. "HVAC", "Plumbing", "Electrical"
-  status            TEXT            CHECK (status IN ('open', 'in_progress', 'completed', 'blocked', 'cancelled')),
-  notes             TEXT,           -- Claude's extracted context / progress update
-  slack_thread_url  TEXT,           -- Link to the Slack thread
-
-  -- Timestamps
-  analyzed_at       TIMESTAMPTZ   DEFAULT NOW(),
-  updated_at        TIMESTAMPTZ   DEFAULT NOW()
-);
-
--- Index for fast lookup by home
-CREATE INDEX IF NOT EXISTS repairs_home_id_idx ON repairs (home_id);
-
--- Auto-update updated_at on any change
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER repairs_updated_at
-  BEFORE UPDATE ON repairs
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
--- ============================================================
--- 3. ROW LEVEL SECURITY
+-- 2. ROW LEVEL SECURITY
+--    NOTE: the repair-context table (home_repair_context) is created
+--    in migration_v2.sql with its own RLS policies. The legacy "repairs"
+--    table has been removed.
 -- ============================================================
 
-ALTER TABLE homes   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE repairs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE homes ENABLE ROW LEVEL SECURITY;
 
 -- homes: any authenticated @belonghome.com user can read
 CREATE POLICY "Belong users can read homes"
   ON homes FOR SELECT
   USING (
     auth.role() = 'authenticated'
-    AND auth.jwt() ->> 'email' LIKE '%@belonghome.com'
+    AND (
+      auth.jwt() ->> 'email' LIKE '%@belonghome.com'
+      OR auth.jwt() ->> 'email' LIKE '%@belong.pe'
+    )
   );
 
 -- homes: only admin can write
@@ -168,27 +135,6 @@ CREATE POLICY "Admin can delete homes"
   ON homes FOR DELETE
   USING (auth.jwt() ->> 'email' = 'guillen.onela@belonghome.com');
 
--- repairs: any authenticated @belonghome.com user can read
-CREATE POLICY "Belong users can read repairs"
-  ON repairs FOR SELECT
-  USING (
-    auth.role() = 'authenticated'
-    AND auth.jwt() ->> 'email' LIKE '%@belonghome.com'
-  );
-
--- repairs: only admin can write (Claude API uses admin session or service role)
-CREATE POLICY "Admin can insert repairs"
-  ON repairs FOR INSERT
-  WITH CHECK (auth.jwt() ->> 'email' = 'guillen.onela@belonghome.com');
-
-CREATE POLICY "Admin can update repairs"
-  ON repairs FOR UPDATE
-  USING (auth.jwt() ->> 'email' = 'guillen.onela@belonghome.com')
-  WITH CHECK (auth.jwt() ->> 'email' = 'guillen.onela@belonghome.com');
-
-CREATE POLICY "Admin can delete repairs"
-  ON repairs FOR DELETE
-  USING (auth.jwt() ->> 'email' = 'guillen.onela@belonghome.com');
 
 -- ============================================================
 -- 4. VERIFICATION (run separately to confirm setup)
@@ -197,7 +143,7 @@ CREATE POLICY "Admin can delete repairs"
 -- WHERE table_name = 'homes' ORDER BY ordinal_position;
 
 -- SELECT column_name, data_type FROM information_schema.columns
--- WHERE table_name = 'repairs' ORDER BY ordinal_position;
+-- WHERE table_name = 'home_repair_context' ORDER BY ordinal_position;
 
 -- SELECT tablename, policyname, cmd FROM pg_policies
--- WHERE tablename IN ('homes', 'repairs');
+-- WHERE tablename IN ('homes', 'home_repair_context');

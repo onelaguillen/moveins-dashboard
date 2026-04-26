@@ -878,11 +878,24 @@ function hoaBadgeHtml(hasHoa, notified) {
 function parseRepairs(str) {
   if (!str) return [];
   return String(str).split('|').map(s => s.trim()).filter(Boolean).map(item => {
+    // New format: "id::cost::summary"  (cost may be empty)
+    // Legacy:     "id:summary"
+    if (item.includes('::')) {
+      const parts = item.split('::');
+      const id   = (parts[0] || '').trim();
+      const cost = (parts[1] || '').trim();
+      const label = parts.slice(2).join('::').trim();
+      return {
+        id:    /^\d+$/.test(id) ? id : null,
+        cost:  cost === '' || isNaN(cost) ? null : Number(cost),
+        label
+      };
+    }
     const i = item.indexOf(':');
-    if (i === -1) return { id: null, label: item };
+    if (i === -1) return { id: null, cost: null, label: item };
     const id = item.slice(0, i).trim();
     const label = item.slice(i + 1).trim();
-    return { id: /^\d+$/.test(id) ? id : null, label };
+    return { id: /^\d+$/.test(id) ? id : null, cost: null, label };
   });
 }
 

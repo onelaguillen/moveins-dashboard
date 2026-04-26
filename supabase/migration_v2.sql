@@ -41,7 +41,10 @@ CREATE POLICY "Belong users can read repair context"
   ON home_repair_context FOR SELECT
   USING (
     auth.role() = 'authenticated'
-    AND auth.jwt() ->> 'email' LIKE '%@belonghome.com'
+    AND (
+      auth.jwt() ->> 'email' LIKE '%@belonghome.com'
+      OR auth.jwt() ->> 'email' LIKE '%@belong.pe'
+    )
   );
 
 -- Insert: admin only (repair-context JSON uploads happen on /manage)
