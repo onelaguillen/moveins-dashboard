@@ -18,6 +18,7 @@ const filterState = {
   region: '',
   spec: '',
   fastMoveIn: false,
+  noQaOnly: false,
   showHandedOff: false, // hide handed-off homes by default
   columnFilters: {}
 };
@@ -224,6 +225,7 @@ function applyFilters() {
     if (filterState.region && r.region !== filterState.region) return false;
     if (filterState.spec   && r.move_in_specialist !== filterState.spec) return false;
     if (filterState.fastMoveIn && !r.derived.is_fast_move_in) return false;
+    if (filterState.noQaOnly && r.qa_group_id) return false;
 
     // Column filters (Excel-style popovers)
     for (const [key, values] of Object.entries(filterState.columnFilters || {})) {
@@ -272,6 +274,7 @@ function clearFilters() {
   filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
   filterState.region = ''; filterState.spec = '';
   filterState.fastMoveIn = false;
+  filterState.noQaOnly = false;
   filterState.showHandedOff = false;
   filterState.columnFilters = {};
   document.getElementById('fSearch').value = '';
@@ -298,6 +301,7 @@ function restoreFilters() {
       dateFrom: s.dateFrom || '', dateTo: s.dateTo || '', dateChip: s.dateChip || '',
       region: s.region || '', spec: s.spec || '',
       fastMoveIn: !!s.fastMoveIn,
+      noQaOnly:   !!s.noQaOnly,
       showHandedOff: !!s.showHandedOff,
       columnFilters: s.columnFilters || {}
     });
@@ -401,12 +405,21 @@ function updateDateChipsUI() {
   });
   const fast = document.getElementById('chip_fast_movein');
   if (fast) fast.classList.toggle('active', !!filterState.fastMoveIn);
+  const noQa = document.getElementById('chip_no_qa');
+  if (noQa) noQa.classList.toggle('active', !!filterState.noQaOnly);
   const ho = document.getElementById('chip_handed_off');
   if (ho) ho.classList.toggle('active', !!filterState.showHandedOff);
 }
 
 function toggleFastMoveInFilter() {
   filterState.fastMoveIn = !filterState.fastMoveIn;
+  updateDateChipsUI();
+  persistFilters();
+  applyFilters();
+}
+
+function toggleNoQaFilter() {
+  filterState.noQaOnly = !filterState.noQaOnly;
   updateDateChipsUI();
   persistFilters();
   applyFilters();

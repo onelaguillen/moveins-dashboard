@@ -1060,6 +1060,7 @@ tr.expansion td {
 .status-urgent { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
 
 #chip_handed_off.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+#chip_no_qa.active { background: var(--red); color: #fff; border-color: var(--red); }
 
 .upload-preview-list { display: flex; flex-direction: column; gap: 4px; }
 .upload-row {
