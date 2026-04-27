@@ -180,6 +180,7 @@ async function loadData() {
 
     populateSelectOptions();
     renderMetrics();
+    syncUiFromState();
     applyFilters();
   } catch (err) {
     console.error(err);
@@ -506,7 +507,7 @@ function restoreFilters() {
 
 function applyUrlParams() {
   const p = new URLSearchParams(window.location.search);
-  if (!p.toString()) return;
+  if (!p.toString()) return false;
   if (p.has('status'))     filterState.statusCard = p.get('status');
   if (p.has('dateFrom'))   filterState.dateFrom   = p.get('dateFrom');
   if (p.has('dateTo'))     filterState.dateTo     = p.get('dateTo');
@@ -531,6 +532,29 @@ function applyUrlParams() {
     }
   }
   // Don't persist URL params back to localStorage — they're a one-shot view.
+  // Strip params from the URL so Clear works normally and a refresh = fresh visit.
+  try { history.replaceState({}, '', window.location.pathname); } catch {}
+  return true;
+}
+
+// Sync every visual indicator (chips, metric card, date picker, column filters)
+// from the current filterState. Called once on init AFTER restoreFilters() so
+// URL-arrived filters (e.g. ?unpriced=1 from analytics) light up correctly.
+function syncUiFromState() {
+  updateDateChipsUI();
+  updateMetricCardsUI();
+  updateDateClearUI();
+  updateSpecialistButtonLabel();
+  renderSortIndicators();
+  // Sync flatpickr picker to dateFrom/dateTo if the URL provided them.
+  if (window._datePicker) {
+    if (filterState.dateFrom && filterState.dateTo)
+      window._datePicker.setDate([filterState.dateFrom, filterState.dateTo], false);
+    else if (filterState.dateFrom)
+      window._datePicker.setDate([filterState.dateFrom], false);
+    else if (filterState.dateTo)
+      window._datePicker.setDate([filterState.dateTo], false);
+  }
 }
 
 // ── Metric cards ─────────────────────────────────────────────────────────────
