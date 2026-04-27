@@ -754,15 +754,23 @@ tr.expanded td { background: var(--surface2); }
 .status-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .03em;
   text-transform: uppercase;
-  padding: 3px 9px;
-  border-radius: 999px;
+  padding: 4px 8px;
+  border-radius: 8px;
   border: 1px solid transparent;
-  white-space: nowrap;
+  /* Fixed footprint: word can wrap onto next line, but the box stays the same width */
+  width: 110px;
+  min-height: 24px;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.15;
+  word-break: break-word;
+  box-sizing: border-box;
 }
 .status-ready        { background: var(--green-dim); color: var(--green); border-color: var(--green-border); }
 .status-postponed    { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
@@ -1256,6 +1264,10 @@ tbody tr:not(.expansion):hover { background: var(--surface2); }
 .status-blocked { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
 .status-on_track { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
 .status-handed_off { background: var(--gray-dim); color: var(--muted); border: 1px solid var(--gray-border); }
+.status-lease_break { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+.status-back_out { background: #1F2937; color: #F9FAFB; border: 1px solid #111827; }
+.status-back_out_lease_break { background: #7F1D1D; color: #FEE2E2; border: 1px solid #450A0A; }
+.status-back_out_self_manage { background: #4B5563; color: #F3F4F6; border: 1px solid #374151; }
 
 
 /* ============ Analytics page ============ */
@@ -1375,5 +1387,69 @@ tbody tr:not(.expansion):hover { background: var(--surface2); }
 .ppl-num-warn { color: var(--amber); font-weight: 600; }
 .ppl-num-ok   { color: var(--green); font-weight: 600; }
 .cohort-count { font-variant-numeric: tabular-nums; font-weight: 500; }
+
+
+/* ============ Log thread (notes + delay history) ============ */
+.log-thread { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.log-empty { font-size: 11px; color: var(--faint); font-style: italic; padding: 4px 0; }
+.log-entry {
+  border: 1px solid var(--border); border-radius: var(--rsm);
+  padding: 8px 10px; background: var(--surface);
+  position: relative; font-size: 12px;
+}
+.log-entry-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 4px; gap: 8px;
+}
+.log-author { font-weight: 600; color: var(--text); font-size: 11px; }
+.log-time   { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.log-delete {
+  background: transparent; border: none; color: var(--faint); cursor: pointer;
+  padding: 0 4px; font-size: 12px; line-height: 1;
+}
+.log-delete:hover { color: var(--red); }
+.log-body { color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.log-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.log-chip {
+  font-size: 10px; padding: 2px 6px; border-radius: 999px;
+  background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border);
+  font-weight: 600;
+}
+.log-other {
+  font-size: 11px; color: var(--muted); font-style: italic; margin-bottom: 4px;
+}
+.log-meta {
+  font-size: 10px; color: var(--muted); font-style: italic;
+}
+.log-event {
+  /* Compact one-liner styling for system events (status_change, handoff, etc.) */
+  font-size: 11px; color: var(--muted); padding: 4px 8px;
+  background: var(--surface2); border-left: 2px solid var(--border2);
+  border-radius: 0 var(--rsm) var(--rsm) 0;
+}
+
+/* ============ Toast widget ============ */
+#toastContainer {
+  position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.toast-item {
+  background: var(--text); color: white;
+  padding: 10px 14px; border-radius: var(--rsm);
+  font-size: 12px; font-weight: 500;
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+  animation: toastIn .2s ease;
+  min-width: 220px; max-width: 360px;
+  display: flex; align-items: center; gap: 8px;
+}
+.toast-item.toast-success { background: var(--green); }
+.toast-item.toast-error   { background: var(--red); }
+.toast-item.toast-out     { animation: toastOut .2s ease forwards; }
+.toast-icon { font-size: 14px; }
+@keyframes toastIn  { from { transform: translateY(20px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+@keyframes toastOut { from { transform: translateY(0); opacity: 1 } to { transform: translateY(20px); opacity: 0 } }
+
 
 

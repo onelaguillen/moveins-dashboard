@@ -40,11 +40,15 @@ const DELAY_REASON_OPTIONS = [
 
 // Manual status options
 const MANUAL_STATUS_OPTIONS = [
-  { value: 'on_track',   label: 'On Track' },
-  { value: 'at_risk',    label: 'At Risk' },
-  { value: 'urgent',     label: 'Urgent' },
-  { value: 'blocked',    label: 'Blocked' },
-  { value: 'handed_off', label: 'Handed Off' }
+  { value: 'on_track',              label: 'On Track' },
+  { value: 'at_risk',               label: 'At Risk' },
+  { value: 'urgent',                label: 'Urgent' },
+  { value: 'blocked',               label: 'Blocked' },
+  { value: 'handed_off',            label: 'Handed Off' },
+  { value: 'lease_break',           label: 'Lease Break' },
+  { value: 'back_out',              label: 'Back Out' },
+  { value: 'back_out_lease_break',  label: 'Back Out + Lease Break' },
+  { value: 'back_out_self_manage',  label: 'Back Out + Self Manage' }
 ];
 
 // Column-filter config: per-column filter options + predicate.
@@ -77,7 +81,11 @@ const COLUMN_FILTERS = {
       { value: 'at_risk',      label: 'At Risk',      test: r => r.derived.effective_status === 'at_risk' },
       { value: 'urgent',       label: 'Urgent',       test: r => r.derived.effective_status === 'urgent' },
       { value: 'blocked',      label: 'Blocked',      test: r => r.derived.effective_status === 'blocked' },
-      { value: 'handed_off',   label: 'Handed off',   test: r => r.derived.effective_status === 'handed_off' || !!r.context?.handed_off_to_concierge }
+      { value: 'handed_off',   label: 'Handed off',   test: r => r.derived.effective_status === 'handed_off' || !!r.context?.handed_off_to_concierge },
+      { value: 'lease_break',           label: 'Lease Break',          test: r => r.derived.effective_status === 'lease_break' },
+      { value: 'back_out',              label: 'Back Out',             test: r => r.derived.effective_status === 'back_out' },
+      { value: 'back_out_lease_break',  label: 'Back Out + Lease Break', test: r => r.derived.effective_status === 'back_out_lease_break' },
+      { value: 'back_out_self_manage',  label: 'Back Out + Self Manage', test: r => r.derived.effective_status === 'back_out_self_manage' }
     ]
   },
   HQS: {
@@ -117,13 +125,24 @@ function setSort(key) {
 
 // Drawer state: which home is open (or null).
 let drawerHomeId = null;
-// In-memory dirty buffers for drawer fields (not yet saved).
-const drawerDraft = { notes: null, delayReasons: null, delayContext: null, delayOther: null };
+// In-memory drafts for the new-entry boxes (not yet saved).
+const drawerDraft = {
+  noteBody: '',
+  delayChips: [],
+  delayBody: '',
+  delayOther: ''
+};
+// Log entries for the open home, loaded on demand.
+let drawerLogEntries = [];
+
+// Track the current user's email so we can show "by Onela G." inline.
+let currentUserEmail = null;
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
   const session = await requireAuth(false);
   if (!session) return;
+  currentUserEmail = session?.user?.email || null;
 
   await mountHeader({ page: 'dashboard', session });
   startIdleWatcher();
@@ -136,6 +155,13 @@ const drawerDraft = { notes: null, delayReasons: null, delayContext: null, delay
   wireFilters();
   await loadData();
 })();
+
+const ADMIN_EMAILS = ['guillen.onela@belonghome.com', 'quiroga.veronica@belonghome.com'];
+function canDeleteEntry(entry) {
+  if (!entry || !currentUserEmail) return false;
+  if (ADMIN_EMAILS.includes(currentUserEmail.toLowerCase())) return true;
+  return (entry.created_by_email || '').toLowerCase() === currentUserEmail.toLowerCase();
+}
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 async function loadData() {
@@ -853,19 +879,27 @@ function repairsPanelHtml(r) {
 }
 
 // ── Detail drawer ────────────────────────────────────────────────────────────
-function openDrawer(homeId) {
+async function openDrawer(homeId) {
   drawerHomeId = homeId;
-  drawerDraft.notes = null;
-  drawerDraft.delayReasons = null;
-  drawerDraft.delayContext = null;
-  drawerDraft.delayOther = null;
+  drawerDraft.noteBody = '';
+  drawerDraft.delayChips = [];
+  drawerDraft.delayBody = '';
+  drawerDraft.delayOther = '';
+  drawerLogEntries = [];
   document.getElementById('drawerBackdrop').classList.add('open');
   document.getElementById('detailDrawer').classList.add('open');
   document.getElementById('detailDrawer').setAttribute('aria-hidden', 'false');
-  renderDrawer();
+  renderDrawer(); // initial paint (no entries yet)
+  try {
+    drawerLogEntries = await dataSource.getLogEntries(homeId);
+    renderDrawer();
+  } catch (err) {
+    showToast('Could not load log: ' + err.message, 'error');
+  }
 }
 function closeDrawer() {
   drawerHomeId = null;
+  drawerLogEntries = [];
   document.getElementById('drawerBackdrop').classList.remove('open');
   document.getElementById('detailDrawer').classList.remove('open');
   document.getElementById('detailDrawer').setAttribute('aria-hidden', 'true');
@@ -884,18 +918,12 @@ function renderDrawer() {
   const handedOff = !!ctx.handed_off_to_concierge;
   const isDelayed = !!ctx.is_delayed;
 
-  // Effective draft values (fallback to saved DB values)
-  const notesVal = drawerDraft.notes != null ? drawerDraft.notes : (ctx.repairs_context || '');
-  const reasons  = drawerDraft.delayReasons != null ? drawerDraft.delayReasons : (Array.isArray(ctx.delay_reasons) ? ctx.delay_reasons : []);
-  const ctxText  = drawerDraft.delayContext != null ? drawerDraft.delayContext : (ctx.delay_context || '');
-  const otherText = drawerDraft.delayOther != null ? drawerDraft.delayOther : (ctx.delay_other_text || '');
+  // Drafts for the new-entry boxes
+  const reasons   = drawerDraft.delayChips || [];
   const otherSelected = reasons.includes('other');
-
-  const notesDirty = drawerDraft.notes != null && drawerDraft.notes !== (ctx.repairs_context || '');
-  const delayDirty =
-    (drawerDraft.delayReasons != null && JSON.stringify(drawerDraft.delayReasons) !== JSON.stringify(ctx.delay_reasons || [])) ||
-    (drawerDraft.delayContext != null && drawerDraft.delayContext !== (ctx.delay_context || '')) ||
-    (drawerDraft.delayOther   != null && drawerDraft.delayOther   !== (ctx.delay_other_text || ''));
+  const noteDirty  = !!(drawerDraft.noteBody && drawerDraft.noteBody.trim());
+  const delayDirty = reasons.length > 0 || (drawerDraft.delayBody && drawerDraft.delayBody.trim()) ||
+                     (otherSelected && drawerDraft.delayOther && drawerDraft.delayOther.trim());
 
   const misName = r.move_in_specialist ? `MIS · ${escapeHtml(r.move_in_specialist)}` : '';
   const hqsName = r.improvements_specialist ? `HQS · ${escapeHtml(r.improvements_specialist)}` : '';
@@ -939,23 +967,32 @@ function renderDrawer() {
     </div>
   `;
 
+  // Filter helpers for the log thread
+  const delayEntries  = drawerLogEntries.filter(e => e.kind === 'delay' || e.kind === 'delay_cleared');
+  const noteEntries   = drawerLogEntries.filter(e => e.kind === 'note');
+  const eventEntries  = drawerLogEntries.filter(e =>
+    ['status_change','status_reset','handoff','handoff_cleared'].includes(e.kind));
+
   // Delay section
   const chipsHtml = DELAY_REASON_OPTIONS.map(o => `
     <span class="dr-chip ${reasons.includes(o.value) ? 'active' : ''}" onclick="onToggleDelayReason('${o.value}')">${escapeHtml(o.label)}</span>
   `).join('');
   const delayHtml = `
     <div class="dr-section">
-      <div class="dr-h">Delay${isDelayed ? ' · logged' : ''}</div>
+      <div class="dr-h">Delay${isDelayed ? ' · active' : ''}</div>
       <div class="dr-chip-grid">${chipsHtml}</div>
       ${otherSelected ? `
-        <input class="dr-input" type="text" placeholder="Specify 'other' reason…" value="${escapeAttr(otherText)}" oninput="drawerDraft.delayOther = this.value; updateDelayDirty()" style="margin-bottom:8px">
+        <input class="dr-input" type="text" placeholder="Specify 'other' reason…" value="${escapeAttr(drawerDraft.delayOther || '')}" oninput="drawerDraft.delayOther = this.value; updateDelaySaveBtn()" style="margin-bottom:8px">
       ` : ''}
-      <textarea class="dr-textarea" placeholder="Context (what happened, ETA, who's blocking)…" oninput="drawerDraft.delayContext = this.value; updateDelayDirty()">${escapeHtml(ctxText)}</textarea>
+      <textarea class="dr-textarea" placeholder="Context (what happened, ETA, who's blocking)…" oninput="drawerDraft.delayBody = this.value; updateDelaySaveBtn()">${escapeHtml(drawerDraft.delayBody || '')}</textarea>
       <div class="dr-actions">
-        <button class="dr-btn dr-btn-primary" id="drDelaySaveBtn" ${delayDirty ? '' : 'disabled'} onclick="onSaveDelay()">Save delay</button>
+        <button class="dr-btn dr-btn-primary" id="drDelaySaveBtn" ${delayDirty ? '' : 'disabled'} onclick="onAddDelayEntry()">Log delay</button>
         ${isDelayed ? `<button class="dr-btn dr-btn-ghost" onclick="onClearDelay()">Clear delay</button>` : ''}
-        <span class="dr-dirty-stamp" id="drDelayDirty" style="${delayDirty ? '' : 'display:none'}">Unsaved</span>
-        ${ctx.delay_logged_at && !delayDirty ? `<span class="dr-saved-stamp">Saved ${formatDateNumeric(ctx.delay_logged_at)}</span>` : ''}
+      </div>
+      <div class="log-thread">
+        ${delayEntries.length
+          ? delayEntries.map(renderDelayEntry).join('')
+          : '<div class="log-empty">No delays logged yet.</div>'}
       </div>
     </div>
   `;
@@ -964,13 +1001,27 @@ function renderDrawer() {
   const notesHtml = `
     <div class="dr-section">
       <div class="dr-h">Notes</div>
-      <textarea class="dr-textarea" placeholder="Notes for this home (visible to all move-ins team)…" oninput="drawerDraft.notes = this.value; updateNotesDirty()">${escapeHtml(notesVal)}</textarea>
+      <textarea class="dr-textarea" placeholder="Add a note for this home (visible to all move-ins team)…" oninput="drawerDraft.noteBody = this.value; updateNotesSaveBtn()">${escapeHtml(drawerDraft.noteBody || '')}</textarea>
       <div class="dr-actions">
-        <button class="dr-btn dr-btn-primary" id="drNotesSaveBtn" ${notesDirty ? '' : 'disabled'} onclick="onSaveNotes()">Save notes</button>
-        ${notesDirty ? `<span class="dr-dirty-stamp" id="drNotesDirty">Unsaved</span>` : ''}
+        <button class="dr-btn dr-btn-primary" id="drNotesSaveBtn" ${noteDirty ? '' : 'disabled'} onclick="onAddNoteEntry()">Add note</button>
+      </div>
+      <div class="log-thread">
+        ${noteEntries.length
+          ? noteEntries.map(renderNoteEntry).join('')
+          : '<div class="log-empty">No notes yet.</div>'}
       </div>
     </div>
   `;
+
+  // Activity (events) — auto-logged status changes, handoffs
+  const activityHtml = eventEntries.length ? `
+    <div class="dr-section">
+      <div class="dr-h">Activity</div>
+      <div class="log-thread">
+        ${eventEntries.map(renderEventEntry).join('')}
+      </div>
+    </div>
+  ` : '';
 
   // Repairs section
   const repItems = r.repairs.map(it => {
@@ -1023,133 +1074,245 @@ function renderDrawer() {
     ${paymentHtml}
     ${delayHtml}
     ${notesHtml}
+    ${activityHtml}
     ${repairsHtml}
   `;
 }
 
-// Drawer event handlers — write through then re-load context
+// ── Log-entry renderers ─────────────────────────────────────────────────────
+function renderDelayEntry(e) {
+  const author = escapeHtml(e.created_by_name || e.created_by_email || 'Unknown');
+  const when = formatLogTime(e.created_at);
+  const canDelete = canDeleteEntry(e);
+  if (e.kind === 'delay_cleared') {
+    return `
+      <div class="log-entry">
+        <div class="log-entry-head">
+          <span class="log-author">${author}</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="log-time">${when}</span>
+            ${canDelete ? `<button class="log-delete" onclick="onDeleteLogEntry(${e.id})" title="Delete entry">✕</button>` : ''}
+          </div>
+        </div>
+        <div class="log-meta">✅ Delay cleared</div>
+      </div>
+    `;
+  }
+  const chips = Array.isArray(e.chips) ? e.chips : [];
+  const chipsHtml = chips.length
+    ? `<div class="log-chips">${chips.map(c => {
+        const label = (DELAY_REASON_OPTIONS.find(o => o.value === c) || {}).label || c;
+        return `<span class="log-chip">${escapeHtml(label)}</span>`;
+      }).join('')}</div>`
+    : '';
+  const otherHtml = e.other_text ? `<div class="log-other">Other: ${escapeHtml(e.other_text)}</div>` : '';
+  const bodyHtml = e.body ? `<div class="log-body">${escapeHtml(e.body)}</div>` : '';
+  return `
+    <div class="log-entry">
+      <div class="log-entry-head">
+        <span class="log-author">${author}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="log-time">${when}</span>
+          ${canDelete ? `<button class="log-delete" onclick="onDeleteLogEntry(${e.id})" title="Delete entry">✕</button>` : ''}
+        </div>
+      </div>
+      ${chipsHtml}${otherHtml}${bodyHtml}
+    </div>
+  `;
+}
+
+function renderNoteEntry(e) {
+  const author = escapeHtml(e.created_by_name || e.created_by_email || 'Unknown');
+  const when = formatLogTime(e.created_at);
+  const canDelete = canDeleteEntry(e);
+  return `
+    <div class="log-entry">
+      <div class="log-entry-head">
+        <span class="log-author">${author}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="log-time">${when}</span>
+          ${canDelete ? `<button class="log-delete" onclick="onDeleteLogEntry(${e.id})" title="Delete entry">✕</button>` : ''}
+        </div>
+      </div>
+      <div class="log-body">${escapeHtml(e.body || '')}</div>
+    </div>
+  `;
+}
+
+function renderEventEntry(e) {
+  const author = escapeHtml(e.created_by_name || e.created_by_email || 'Unknown');
+  const when = formatLogTime(e.created_at);
+  const canDelete = canDeleteEntry(e);
+  let summary = '';
+  const meta = e.meta || {};
+  if (e.kind === 'status_change') {
+    const fromL = labelForState(meta.from);
+    const toL   = labelForState(meta.to);
+    summary = `Status changed from <strong>${escapeHtml(fromL)}</strong> to <strong>${escapeHtml(toL)}</strong>`;
+  } else if (e.kind === 'status_reset') {
+    summary = `Status reset to auto-derived`;
+  } else if (e.kind === 'handoff') {
+    summary = `🤝 Handed off to concierge`;
+  } else if (e.kind === 'handoff_cleared') {
+    summary = `↩️ Handoff cleared`;
+  }
+  return `
+    <div class="log-event">
+      <strong>${author}</strong> · ${when} — ${summary}
+      ${canDelete ? `<button class="log-delete" onclick="onDeleteLogEntry(${e.id})" style="float:right" title="Delete entry">✕</button>` : ''}
+    </div>
+  `;
+}
+
+function formatLogTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d)) return '';
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (sameDay) return `Today ${time}`;
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday ${time}`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + time;
+}
+
+// Drawer event handlers — write to context + log entry, then reload
 async function onManualStatusChange(value) {
   if (!drawerHomeId) return;
+  const r = allRows.find(h => h.home_id === drawerHomeId);
+  const fromStatus = r?.context?.manual_status || r?.derived?.derived_ready_state || null;
   try {
     if (!value) {
       await dataSource.clearManualStatus(drawerHomeId);
+      await dataSource.insertLogEntry(drawerHomeId, 'status_reset', { meta: { from: fromStatus } });
     } else {
-      const email = (await sb.auth.getUser()).data?.user?.email || null;
-      await dataSource.setManualStatus(drawerHomeId, value, email);
+      await dataSource.setManualStatus(drawerHomeId, value, currentUserEmail);
+      await dataSource.insertLogEntry(drawerHomeId, 'status_change', { meta: { from: fromStatus, to: value } });
     }
     await reloadAfterDrawerWrite();
+    showToast('Status updated', 'success');
   } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
 }
 async function onResetManualStatus() {
   if (!drawerHomeId) return;
+  const r = allRows.find(h => h.home_id === drawerHomeId);
+  const fromStatus = r?.context?.manual_status || null;
   try {
     await dataSource.clearManualStatus(drawerHomeId);
+    await dataSource.insertLogEntry(drawerHomeId, 'status_reset', { meta: { from: fromStatus } });
     await reloadAfterDrawerWrite();
+    showToast('Reset to auto', 'success');
   } catch (err) { showToast('Reset failed: ' + err.message, 'error'); }
 }
 async function onToggleHandoff(checked) {
   if (!drawerHomeId) return;
   try {
-    const email = (await sb.auth.getUser()).data?.user?.email || null;
-    if (checked) await dataSource.markHandedOff(drawerHomeId, email);
-    else await dataSource.unmarkHandedOff(drawerHomeId);
+    if (checked) {
+      await dataSource.markHandedOff(drawerHomeId, currentUserEmail);
+      await dataSource.insertLogEntry(drawerHomeId, 'handoff');
+    } else {
+      await dataSource.unmarkHandedOff(drawerHomeId);
+      await dataSource.insertLogEntry(drawerHomeId, 'handoff_cleared');
+    }
     await reloadAfterDrawerWrite();
+    showToast(checked ? 'Handed off' : 'Handoff cleared', 'success');
   } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
 }
 function onToggleDelayReason(value) {
-  const r = allRows.find(h => h.home_id === drawerHomeId);
-  const current = drawerDraft.delayReasons != null
-    ? drawerDraft.delayReasons
-    : (Array.isArray(r?.context?.delay_reasons) ? [...r.context.delay_reasons] : []);
+  const current = [...(drawerDraft.delayChips || [])];
   const idx = current.indexOf(value);
   if (idx >= 0) current.splice(idx, 1); else current.push(value);
-  drawerDraft.delayReasons = current;
+  drawerDraft.delayChips = current;
   renderDrawer();
 }
-async function onSaveDelay() {
+async function onAddDelayEntry() {
   if (!drawerHomeId) return;
-  const r = allRows.find(h => h.home_id === drawerHomeId);
-  const reasons = drawerDraft.delayReasons != null ? drawerDraft.delayReasons : (r?.context?.delay_reasons || []);
-  const otherText = drawerDraft.delayOther != null ? drawerDraft.delayOther : (r?.context?.delay_other_text || '');
-  const ctxText = drawerDraft.delayContext != null ? drawerDraft.delayContext : (r?.context?.delay_context || '');
+  const reasons = drawerDraft.delayChips || [];
+  const body = (drawerDraft.delayBody || '').trim();
+  const otherText = reasons.includes('other') ? (drawerDraft.delayOther || '').trim() : null;
+  if (!reasons.length && !body && !otherText) return;
   try {
-    const email = (await sb.auth.getUser()).data?.user?.email || null;
-    if (!reasons.length && !ctxText && !otherText) {
-      await dataSource.unmarkDelayed(drawerHomeId);
-    } else {
-      await dataSource.markDelayed(drawerHomeId, reasons, otherText, ctxText, email);
-    }
-    drawerDraft.delayReasons = null;
-    drawerDraft.delayContext = null;
-    drawerDraft.delayOther = null;
+    await dataSource.insertLogEntry(drawerHomeId, 'delay', {
+      chips: reasons, body: body || null, other_text: otherText || null
+    });
+    // Mirror state to home_repair_context so dashboard list view reflects current delay
+    await dataSource.markDelayed(drawerHomeId, reasons, otherText, body, currentUserEmail);
+    drawerDraft.delayChips = [];
+    drawerDraft.delayBody = '';
+    drawerDraft.delayOther = '';
     await reloadAfterDrawerWrite();
-    showToast('Delay saved', 'success');
+    showToast('Delay logged', 'success');
   } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
 }
 async function onClearDelay() {
   if (!drawerHomeId) return;
   try {
     await dataSource.unmarkDelayed(drawerHomeId);
-    drawerDraft.delayReasons = null;
-    drawerDraft.delayContext = null;
-    drawerDraft.delayOther = null;
+    await dataSource.insertLogEntry(drawerHomeId, 'delay_cleared');
     await reloadAfterDrawerWrite();
-  } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+    showToast('Delay cleared', 'success');
+  } catch (err) { showToast('Clear failed: ' + err.message, 'error'); }
 }
-async function onSaveNotes() {
-  if (!drawerHomeId || drawerDraft.notes == null) return;
+async function onAddNoteEntry() {
+  if (!drawerHomeId) return;
+  const body = (drawerDraft.noteBody || '').trim();
+  if (!body) return;
   try {
-    await dataSource.saveNotes(drawerHomeId, drawerDraft.notes);
-    drawerDraft.notes = null;
+    await dataSource.insertLogEntry(drawerHomeId, 'note', { body });
+    drawerDraft.noteBody = '';
     await reloadAfterDrawerWrite();
-    showToast('Notes saved', 'success');
+    showToast('Note added', 'success');
   } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
 }
-function updateDelayDirty() {
-  const r = allRows.find(h => h.home_id === drawerHomeId);
-  if (!r) return;
-  const ctx = r.context || {};
-  const reasons = drawerDraft.delayReasons != null ? drawerDraft.delayReasons : (ctx.delay_reasons || []);
-  const ctxText = drawerDraft.delayContext != null ? drawerDraft.delayContext : (ctx.delay_context || '');
-  const otherText = drawerDraft.delayOther != null ? drawerDraft.delayOther : (ctx.delay_other_text || '');
-  const dirty =
-    (drawerDraft.delayReasons != null && JSON.stringify(reasons) !== JSON.stringify(ctx.delay_reasons || [])) ||
-    (drawerDraft.delayContext != null && ctxText !== (ctx.delay_context || '')) ||
-    (drawerDraft.delayOther   != null && otherText !== (ctx.delay_other_text || ''));
-  const btn = document.getElementById('drDelaySaveBtn');
-  const flag = document.getElementById('drDelayDirty');
-  if (btn) btn.disabled = !dirty;
-  if (flag) flag.style.display = dirty ? '' : 'none';
+async function onDeleteLogEntry(id) {
+  if (!drawerHomeId) return;
+  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  try {
+    await dataSource.deleteLogEntry(id);
+    drawerLogEntries = drawerLogEntries.filter(e => e.id !== id);
+    renderDrawer();
+    showToast('Entry deleted', 'success');
+  } catch (err) { showToast('Delete failed: ' + err.message, 'error'); }
 }
-window.updateDelayDirty = updateDelayDirty;
-
-function updateNotesDirty() {
-  // Lightweight: update only the Save button + dirty flag without full re-render
-  const r = allRows.find(h => h.home_id === drawerHomeId);
-  if (!r) return;
-  const saved = r.context?.repairs_context || '';
-  const dirty = drawerDraft.notes != null && drawerDraft.notes !== saved;
+function updateNotesSaveBtn() {
+  const dirty = !!(drawerDraft.noteBody && drawerDraft.noteBody.trim());
   const btn = document.getElementById('drNotesSaveBtn');
   if (btn) btn.disabled = !dirty;
 }
+function updateDelaySaveBtn() {
+  const reasons = drawerDraft.delayChips || [];
+  const otherSelected = reasons.includes('other');
+  const dirty = reasons.length > 0
+    || (drawerDraft.delayBody && drawerDraft.delayBody.trim())
+    || (otherSelected && drawerDraft.delayOther && drawerDraft.delayOther.trim());
+  const btn = document.getElementById('drDelaySaveBtn');
+  if (btn) btn.disabled = !dirty;
+}
 async function reloadAfterDrawerWrite() {
-  // Reload only repair_context (cheap) and re-derive view models
+  // Reload data + log entries, then re-render the drawer.
   try {
-    const [repairContext] = await Promise.all([dataSource.getRepairContext()]);
-    // Rebuild view models with existing raw data isn't feasible without refactor;
-    // simplest reliable path: full reload.
     await loadData();
-    if (drawerHomeId) renderDrawer();
+    if (drawerHomeId) {
+      drawerLogEntries = await dataSource.getLogEntries(drawerHomeId);
+      renderDrawer();
+    }
   } catch (err) { showToast('Reload failed: ' + err.message, 'error'); }
 }
 window.onManualStatusChange = onManualStatusChange;
 window.onResetManualStatus = onResetManualStatus;
 window.onToggleHandoff = onToggleHandoff;
 window.onToggleDelayReason = onToggleDelayReason;
-window.onSaveDelay = onSaveDelay;
+window.onAddDelayEntry = onAddDelayEntry;
 window.onClearDelay = onClearDelay;
-window.onSaveNotes = onSaveNotes;
-window.updateNotesDirty = updateNotesDirty;
+window.onAddNoteEntry = onAddNoteEntry;
+window.onDeleteLogEntry = onDeleteLogEntry;
+window.updateNotesSaveBtn = updateNotesSaveBtn;
+window.updateDelaySaveBtn = updateDelaySaveBtn;
 window.drawerDraft = drawerDraft;
 window.renderDrawer = renderDrawer;
 
@@ -1194,15 +1357,32 @@ function labelForState(s) {
     at_risk: 'At Risk',
     urgent: 'Urgent',
     blocked: 'Blocked',
-    handed_off: 'Handed Off'
+    handed_off: 'Handed Off',
+    lease_break: 'Lease Break',
+    back_out: 'Back Out',
+    back_out_lease_break: 'Back Out + Lease Break',
+    back_out_self_manage: 'Back Out + Self Manage'
   })[s] || 'Unknown';
 }
 
-function showToast(msg, kind) {
-  // Lightweight toast (falls back to alert if no toast container).
-  if (typeof window.toast === 'function') return window.toast(msg, kind);
-  console.log(`[${kind || 'info'}] ${msg}`);
+function showToast(msg, kind = '') {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    document.body.appendChild(container);
+  }
+  const el = document.createElement('div');
+  el.className = `toast-item ${kind === 'success' ? 'toast-success' : kind === 'error' ? 'toast-error' : ''}`;
+  const icon = kind === 'success' ? '✅' : kind === 'error' ? '⚠️' : 'ℹ️';
+  el.innerHTML = `<span class="toast-icon">${icon}</span><span>${escapeHtml(msg)}</span>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('toast-out');
+    setTimeout(() => el.remove(), 200);
+  }, 3000);
 }
+window.showToast = showToast;
 
 function paymentPanelHtml(r) {
   const money = v => (v == null || v === '' || isNaN(v)) ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

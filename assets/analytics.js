@@ -256,15 +256,22 @@ function renderVolume() {
 // ── Readiness ────────────────────────────────────────────────────────────────
 function renderReadiness() {
   // Status breakdown (donut)
-  const buckets = { ready: 0, on_track: 0, in_progress: 0, at_risk: 0, urgent: 0, blocked: 0, handed_off: 0 };
+  const buckets = {
+    ready: 0, on_track: 0, in_progress: 0, at_risk: 0,
+    urgent: 0, blocked: 0, handed_off: 0,
+    lease_break: 0, back_out: 0, back_out_lease_break: 0, back_out_self_manage: 0
+  };
   for (const r of filtered) {
     const s = r.derived.effective_status;
     if (s in buckets) buckets[s]++;
     else buckets.in_progress++;
   }
-  const labels = ['Ready', 'On Track', 'In Progress', 'At Risk', 'Urgent', 'Blocked', 'Handed Off'];
-  const values = ['ready', 'on_track', 'in_progress', 'at_risk', 'urgent', 'blocked', 'handed_off'].map(k => buckets[k]);
-  const colors = ['#1DB87A', '#3EE4A9', '#FFAF00', '#D97706', '#DC2626', '#991B1B', '#94A3B8'];
+  const labels = ['Ready', 'On Track', 'In Progress', 'At Risk', 'Urgent', 'Blocked', 'Handed Off',
+                  'Lease Break', 'Back Out', 'Back Out + LB', 'Back Out + SM'];
+  const values = ['ready', 'on_track', 'in_progress', 'at_risk', 'urgent', 'blocked', 'handed_off',
+                  'lease_break', 'back_out', 'back_out_lease_break', 'back_out_self_manage'].map(k => buckets[k]);
+  const colors = ['#1DB87A', '#3EE4A9', '#FFAF00', '#D97706', '#DC2626', '#991B1B', '#94A3B8',
+                  '#FCA5A5', '#1F2937', '#7F1D1D', '#4B5563'];
   drawDonut('chartStatus', labels, values, colors);
   const total = filtered.length;
   const lines = [

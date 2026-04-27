@@ -5,6 +5,29 @@
 //
 // Depends on `sb` from supabase.js being loaded first.
 
+// Derive a friendly author name like "Onela G." from email + user_metadata.
+//  - Email format expected: lastname.firstname@belonghome.com  → "Firstname L."
+//  - Falls back to user_metadata.full_name → "First L."
+//  - Final fallback: the email's local part.
+function formatAuthorName(email, metadata) {
+  if (metadata?.full_name) {
+    const parts = String(metadata.full_name).trim().split(/\s+/);
+    if (parts.length >= 2) return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+    return parts[0];
+  }
+  if (!email) return 'Unknown';
+  const local = email.split('@')[0] || email;
+  // Belong emails are typically "lastname.firstname"
+  const segments = local.split('.').filter(Boolean);
+  if (segments.length >= 2) {
+    const last = segments[0];
+    const first = segments[1];
+    const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '';
+    return `${cap(first)} ${last[0].toUpperCase()}.`;
+  }
+  return local;
+}
+
 class SupabaseDataSource {
   constructor(client) {
     this.sb = client;
@@ -142,6 +165,48 @@ class SupabaseDataSource {
   // Notes (repairs_context free-text on home_repair_context).
   async saveNotes(homeId, notes) {
     return this.upsertRepairContext(homeId, { repairs_context: notes || null });
+  }
+
+  // ── Log entries (notes + delay thread) ────────────────────────────────────
+  async getLogEntries(homeId) {
+    const { data, error } = await this.sb
+      .from('home_log_entries')
+      .select('*')
+      .eq('home_id', homeId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error('log entries load failed: ' + error.message);
+    return data || [];
+  }
+
+  async insertLogEntry(homeId, kind, fields = {}) {
+    const u = (await this.sb.auth.getUser()).data?.user;
+    const email = u?.email || null;
+    const name  = formatAuthorName(email, u?.user_metadata);
+    const row = {
+      home_id: homeId,
+      kind,
+      body:       fields.body       ?? null,
+      chips:      fields.chips      ?? null,
+      other_text: fields.other_text ?? null,
+      meta:       fields.meta       ?? null,
+      created_by_email: email,
+      created_by_name:  name
+    };
+    const { data, error } = await this.sb
+      .from('home_log_entries')
+      .insert(row)
+      .select()
+      .single();
+    if (error) throw new Error('insertLogEntry failed: ' + error.message);
+    return data;
+  }
+
+  async deleteLogEntry(id) {
+    const { error } = await this.sb
+      .from('home_log_entries')
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error('deleteLogEntry failed: ' + error.message);
   }
 
   // ── Snapshots (analytics) ──────────────────────────────────────────────────
