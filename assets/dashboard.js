@@ -1029,6 +1029,15 @@ function renderDrawer() {
     const costHtml = it.repair_estimated_cost != null
       ? `<span class="dr-rep-tag" style="font-family:ui-monospace,monospace">$${Number(it.repair_estimated_cost).toLocaleString()}</span>`
       : `<span class="dr-rep-tag" style="color:var(--red);border-color:var(--red-border);background:var(--red-dim);font-weight:600">Not priced</span>`;
+    // Aging tag: show only on unpriced open repairs that are ≥7 calendar days old.
+    let ageHtml = '';
+    if (it.repair_estimated_cost == null && it.status !== 'done' && it.repair_created_on) {
+      const days = Math.floor((Date.now() - new Date(it.repair_created_on).getTime()) / 86400000);
+      if (days >= 7) {
+        const cls = days >= 30 ? 'dr-rep-age age-warn' : 'dr-rep-age';
+        ageHtml = `<span class="${cls}" title="Unpriced for ${days} calendar day${days === 1 ? '' : 's'}">⏱ ${days}d unpriced</span>`;
+      }
+    }
     const categoryTag = it.repair_category
       ? `<span class="dr-rep-tag" style="background:var(--navy-dim);color:var(--navy);border-color:var(--navy-border);font-weight:600">${escapeHtml(it.repair_category)}</span>`
       : '';
@@ -1038,7 +1047,7 @@ function renderDrawer() {
         ${categoryTag}
         ${it.repair_assessment ? `<span class="dr-rep-tag">${escapeHtml(it.repair_assessment)}</span>` : ''}
         <span class="dr-rep-title">${escapeHtml(it.repair_summary || '—')}</span>
-        ${costHtml}
+        ${costHtml}${ageHtml}
         <span class="dr-rep-tag" style="${open ? 'color:var(--amber);border-color:var(--amber-border);background:var(--amber-dim)' : 'color:var(--green);border-color:var(--green-border);background:var(--green-dim)'}">${escapeHtml(it.status)}</span>
         <span style="color:var(--blue);margin-left:auto">↗</span>
       </a>
@@ -1271,7 +1280,12 @@ async function onAddNoteEntry() {
 }
 async function onDeleteLogEntry(id) {
   if (!drawerHomeId) return;
-  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  const ok = await confirmModal({
+    title: 'Delete entry?',
+    body: 'This entry will be permanently removed and won\'t appear in the activity log anymore.',
+    confirmText: 'Delete'
+  });
+  if (!ok) return;
   try {
     await dataSource.deleteLogEntry(id);
     drawerLogEntries = drawerLogEntries.filter(e => e.id !== id);
@@ -1364,6 +1378,47 @@ function labelForState(s) {
     back_out_self_manage: 'Back Out + Self Manage'
   })[s] || 'Unknown';
 }
+
+// Promise-based confirm modal. Returns true/false. Replaces browser confirm().
+function confirmModal({ title = 'Are you sure?', body = 'This action cannot be undone.', confirmText = 'Delete', cancelText = 'Cancel', danger = true } = {}) {
+  return new Promise(resolve => {
+    const backdrop = document.getElementById('confirmModalBackdrop');
+    const titleEl  = document.getElementById('cmTitle');
+    const bodyEl   = document.getElementById('cmBody');
+    const okBtn    = document.getElementById('cmConfirm');
+    const cancelBtn= document.getElementById('cmCancel');
+    if (!backdrop) { resolve(window.confirm(body)); return; }
+
+    titleEl.textContent = title;
+    bodyEl.textContent  = body;
+    okBtn.textContent   = confirmText;
+    cancelBtn.textContent = cancelText;
+    okBtn.className = 'cm-btn ' + (danger ? 'cm-btn-danger' : 'cm-btn-ghost');
+
+    const cleanup = (result) => {
+      backdrop.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      backdrop.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    const onBackdrop = (e) => { if (e.target === backdrop) cleanup(false); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') cleanup(false);
+      if (e.key === 'Enter')  cleanup(true);
+    };
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    backdrop.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+    backdrop.classList.add('open');
+    okBtn.focus();
+  });
+}
+window.confirmModal = confirmModal;
 
 function showToast(msg, kind = '') {
   let container = document.getElementById('toastContainer');

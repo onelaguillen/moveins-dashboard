@@ -20,6 +20,9 @@ const filterState = {
 
 const charts = {};       // Chart.js instances, so we can destroy + redraw
 
+// Pricing & aging scope: 'required' (default) or 'all' (Required + Recommended).
+let pricingScope = 'required';
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
   const session = await requireAuth(false);
@@ -382,7 +385,132 @@ function renderRepairs() {
     [requiredOpen, recommendedOpen, Math.max(0, totalOpen - requiredOpen - recommendedOpen)],
     ['#DC2626', '#FFAF00', '#94A3B8']);
   document.getElementById('assessmentNote').textContent = `${totalOpen} open repair${totalOpen === 1 ? '' : 's'} total`;
+
+  // Pricing & Aging block (depends on pricingScope)
+  renderPricingAging();
 }
+
+function ageInDays(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function renderPricingAging() {
+  // Filter open repairs in the cohort, scoped to required-only or required+recommended
+  const inScope = (rep) => {
+    if (rep.status === 'done') return false;
+    if (pricingScope === 'required') return rep.repair_assessment === 'Required';
+    return rep.repair_assessment === 'Required' || rep.repair_assessment === 'Recommended';
+  };
+  let priced = 0, unpriced = 0, pricedSum = 0;
+  const ages = [];           // ages of unpriced repairs only
+  const buckets = { '0-3': 0, '4-7': 0, '8-14': 0, '15-30': 0, '30+': 0 };
+  for (const r of filtered) {
+    for (const rep of r.repairs) {
+      if (!inScope(rep)) continue;
+      if (rep.repair_estimated_cost == null) {
+        unpriced++;
+        const age = ageInDays(rep.repair_created_on);
+        if (age != null) {
+          ages.push(age);
+          if      (age <= 3)  buckets['0-3']++;
+          else if (age <= 7)  buckets['4-7']++;
+          else if (age <= 14) buckets['8-14']++;
+          else if (age <= 30) buckets['15-30']++;
+          else                buckets['30+']++;
+        }
+      } else {
+        priced++;
+        pricedSum += Number(rep.repair_estimated_cost);
+      }
+    }
+  }
+  const total = priced + unpriced;
+  const pctPriced = total ? Math.round((priced / total) * 100) : 0;
+  const avgAge = ages.length ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : null;
+  const oldestAge = ages.length ? Math.max(...ages) : null;
+
+  const scopeLabel = pricingScope === 'required' ? 'required' : 'required + recommended';
+  const drillRequired = drillUrl({ required: '1' });
+  const drillUnpriced = drillUrl({ unpriced: '1' });
+
+  document.getElementById('pricingKpis').innerHTML = `
+    <div class="kpi-card kpi-hero" onclick="window.open('${drillRequired}', '_blank')">
+      <div class="kpi-label">% ${escapeHtml(scopeLabel)} priced</div>
+      <div class="kpi-value">${total ? pctPriced + '%' : '—'}</div>
+      <div class="kpi-sub">${priced} of ${total} ${escapeHtml(scopeLabel)} repairs priced</div>
+      <div class="kpi-drill" style="color:rgba(255,255,255,0.85)">View homes ↗</div>
+    </div>
+    <div class="kpi-card kpi-skel">
+      <div class="kpi-label">$ Forecasted</div>
+      <div class="kpi-value">$${Math.round(pricedSum).toLocaleString()}</div>
+      <div class="kpi-sub">priced repair total</div>
+    </div>
+    <div class="kpi-card" onclick="window.open('${drillUnpriced}', '_blank')">
+      <div class="kpi-label">Pending (unpriced)</div>
+      <div class="kpi-value">${unpriced}</div>
+      <div class="kpi-sub">${avgAge != null ? `avg ${avgAge}d old · oldest ${oldestAge}d` : 'no aging data'}</div>
+      <div class="kpi-drill">View homes ↗</div>
+    </div>
+  `;
+
+  // Gap bar
+  const pricedPct = total ? (priced / total) * 100 : 0;
+  const unpricedPct = total ? (unpriced / total) * 100 : 0;
+  document.getElementById('pricingGapBar').innerHTML = `
+    <div class="pgb-track">
+      <div class="pgb-priced"   style="width:${pricedPct}%">${total ? `${pricedPct.toFixed(0)}%` : ''}</div>
+      <div class="pgb-unpriced" style="width:${unpricedPct}%">${unpricedPct >= 8 ? `${unpricedPct.toFixed(0)}%` : ''}</div>
+    </div>
+    <div class="pgb-legend">
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:2px;margin-right:4px;vertical-align:middle"></span>
+        <strong>$${Math.round(pricedSum).toLocaleString()}</strong> forecast · ${priced} priced
+      </span>
+      <span>
+        <strong>${unpriced}</strong> unpriced (gap — can't forecast)
+        <span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(-45deg, var(--gray-dim), var(--gray-dim) 3px, transparent 3px, transparent 6px), var(--surface2);border-radius:2px;margin-left:4px;vertical-align:middle"></span>
+      </span>
+    </div>
+  `;
+
+  // Aging histogram (unpriced only)
+  const labels = ['0–3d', '4–7d', '8–14d', '15–30d', '30+d'];
+  const values = [buckets['0-3'], buckets['4-7'], buckets['8-14'], buckets['15-30'], buckets['30+']];
+  const colors = ['#1DB87A', '#3EE4A9', '#FFAF00', '#D97706', '#DC2626'];
+  destroyChart('chartAging');
+  const ctx = document.getElementById('chartAging');
+  if (ctx) {
+    charts['chartAging'] = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 4 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: { beginAtZero: true, ticks: { font: { size: 10 }, precision: 0 } }
+        }
+      }
+    });
+  }
+  document.getElementById('agingNote').innerHTML = unpriced
+    ? `${unpriced} unpriced ${escapeHtml(scopeLabel)} repair${unpriced === 1 ? '' : 's'} · ` +
+      `oldest <strong>${oldestAge}d</strong> · ` +
+      `${buckets['30+'] ? `<span style="color:var(--red);font-weight:600">${buckets['30+']} over 30 days</span> · ` : ''}` +
+      drillLink('View unpriced homes', { unpriced: '1' })
+    : 'Nothing unpriced in this scope. 🎉';
+}
+
+function setPricingScope(scope) {
+  pricingScope = scope;
+  document.querySelectorAll('.ps-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.scope === scope);
+  });
+  renderPricingAging();
+}
+window.setPricingScope = setPricingScope;
 
 // ── Delays ───────────────────────────────────────────────────────────────────
 const DELAY_LABEL_MAP = {

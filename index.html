@@ -102,6 +102,18 @@
   </div>
 </div>
 
+<!-- App-level confirm modal (Promise-based; replaces browser confirm()) -->
+<div id="confirmModalBackdrop" class="cm-backdrop">
+  <div class="cm-modal" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
+    <div class="cm-title" id="cmTitle">Are you sure?</div>
+    <div class="cm-body" id="cmBody">This action cannot be undone.</div>
+    <div class="cm-actions">
+      <button type="button" class="cm-btn cm-btn-ghost" id="cmCancel">Cancel</button>
+      <button type="button" class="cm-btn cm-btn-danger" id="cmConfirm">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- Detail drawer (slides from right) -->
 <div id="drawerBackdrop" class="drawer-backdrop" onclick="closeDrawer()"></div>
 <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">

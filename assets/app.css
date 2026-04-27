@@ -1388,6 +1388,61 @@ tbody tr:not(.expansion):hover { background: var(--surface2); }
 .ppl-num-ok   { color: var(--green); font-weight: 600; }
 .cohort-count { font-variant-numeric: tabular-nums; font-weight: 500; }
 
+/* Pricing scope toggle */
+.pricing-scope-toggle {
+  display: inline-flex; gap: 0; border: 1px solid var(--border);
+  border-radius: var(--rsm); overflow: hidden;
+}
+.ps-btn {
+  font-family: inherit; font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border: 0; background: var(--surface);
+  color: var(--muted); cursor: pointer;
+}
+.ps-btn:hover { background: var(--surface2); color: var(--text); }
+.ps-btn.active { background: var(--navy); color: white; }
+
+/* Pricing gap bar (priced vs unpriced) */
+.pricing-gap-bar {
+  margin-top: 14px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.pgb-track {
+  display: flex; height: 28px; border-radius: 6px; overflow: hidden;
+  background: var(--surface3); border: 1px solid var(--border);
+}
+.pgb-priced {
+  background: var(--green); color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  min-width: 4px; transition: width .3s ease;
+}
+.pgb-unpriced {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--gray-dim),
+    var(--gray-dim) 6px,
+    transparent 6px,
+    transparent 12px
+  ), var(--surface2);
+  color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  min-width: 4px; transition: width .3s ease;
+}
+.pgb-legend {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--muted);
+}
+.pgb-legend strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Inline drawer chip for repair age */
+.dr-rep-age {
+  font-size: 10px; padding: 2px 6px; border-radius: 999px;
+  background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border);
+  font-weight: 600;
+}
+.dr-rep-age.age-warn { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
+
 
 /* ============ Log thread (notes + delay history) ============ */
 .log-thread { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
@@ -1450,6 +1505,39 @@ tbody tr:not(.expansion):hover { background: var(--surface2); }
 .toast-icon { font-size: 14px; }
 @keyframes toastIn  { from { transform: translateY(20px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
 @keyframes toastOut { from { transform: translateY(0); opacity: 1 } to { transform: translateY(20px); opacity: 0 } }
+
+/* ============ Confirm modal ============ */
+.cm-backdrop {
+  position: fixed; inset: 0; background: rgba(15,28,42,0.42);
+  display: none; align-items: center; justify-content: center;
+  z-index: 200;
+  animation: cmFadeIn .12s ease;
+}
+.cm-backdrop.open { display: flex; }
+.cm-modal {
+  background: var(--surface); border-radius: var(--r);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+  width: min(420px, 92vw); padding: 22px;
+  animation: cmModalIn .15s ease;
+}
+.cm-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.cm-body { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 18px; }
+.cm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.cm-btn {
+  font-size: 12px; font-weight: 600; padding: 7px 16px;
+  border-radius: var(--rsm); cursor: pointer;
+  font-family: inherit; transition: all .12s ease;
+}
+.cm-btn-ghost {
+  background: transparent; border: 1px solid var(--border); color: var(--text);
+}
+.cm-btn-ghost:hover { background: var(--surface2); }
+.cm-btn-danger {
+  background: var(--red); color: white; border: 1px solid var(--red);
+}
+.cm-btn-danger:hover { filter: brightness(0.92); }
+@keyframes cmFadeIn  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes cmModalIn { from { transform: translateY(8px) scale(0.98); opacity: 0 } to { transform: translateY(0) scale(1); opacity: 1 } }
 
 
 

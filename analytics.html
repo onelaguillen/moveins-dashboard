@@ -95,6 +95,25 @@
     <div class="ana-section">
       <div class="ana-section-title">🔧 Repairs</div>
       <div class="ana-kpi-row" id="repairKpis"></div>
+
+      <!-- Pricing & Aging sub-section -->
+      <div class="ana-card">
+        <div class="ana-card-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>💰 Pricing &amp; Aging</span>
+          <div class="pricing-scope-toggle">
+            <button type="button" class="ps-btn active" data-scope="required" onclick="setPricingScope('required')">Required only</button>
+            <button type="button" class="ps-btn"        data-scope="all"      onclick="setPricingScope('all')">Required + Recommended</button>
+          </div>
+        </div>
+        <div id="pricingKpis" class="ana-kpi-row" style="grid-template-columns:repeat(3,1fr)"></div>
+        <div id="pricingGapBar" class="pricing-gap-bar"></div>
+        <div style="margin-top:14px">
+          <div class="ana-card-title" style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Days unpriced (since ticket creation)</div>
+          <canvas id="chartAging" height="140"></canvas>
+          <div class="ana-card-note" id="agingNote"></div>
+        </div>
+      </div>
+
       <div class="ana-grid-2">
         <div class="ana-card">
           <div class="ana-card-title">Repairs per home — by HQS</div>
