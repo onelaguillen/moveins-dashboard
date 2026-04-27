@@ -1198,6 +1198,13 @@ tr.expansion td {
   font-size: 10px; padding: 2px 6px; border-radius: 999px;
   background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
 }
+a.dr-repair-link {
+  text-decoration: none; color: inherit; cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+a.dr-repair-link:hover {
+  background: var(--surface2); border-color: var(--border2);
+}
 
 /* Combined MIS+HQS multi-select popover */
 .multi-trigger {

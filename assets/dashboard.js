@@ -928,16 +928,16 @@ function renderDrawer() {
     const open = it.status !== 'done';
     const costHtml = it.repair_estimated_cost != null
       ? `<span class="dr-rep-tag" style="font-family:ui-monospace,monospace">$${Number(it.repair_estimated_cost).toLocaleString()}</span>`
-      : `<span class="dr-rep-tag" style="color:var(--faint);font-style:italic">Not priced</span>`;
+      : `<span class="dr-rep-tag" style="color:var(--red);border-color:var(--red-border);background:var(--red-dim);font-weight:600">Not priced</span>`;
     return `
-      <div class="dr-repair-item">
+      <a class="dr-repair-item dr-repair-link" href="https://foundation.bln.hm/maintenance/${it.maintenance_id}" target="_blank" rel="noopener">
         <span class="dr-rep-id">#${escapeHtml(String(it.maintenance_id))}</span>
         <span class="dr-rep-title">${escapeHtml(it.repair_summary || '—')}</span>
         ${it.repair_assessment ? `<span class="dr-rep-tag">${escapeHtml(it.repair_assessment)}</span>` : ''}
         ${costHtml}
         <span class="dr-rep-tag" style="${open ? 'color:var(--amber);border-color:var(--amber-border);background:var(--amber-dim)' : 'color:var(--green);border-color:var(--green-border);background:var(--green-dim)'}">${escapeHtml(it.status)}</span>
-        <a href="https://foundation.bln.hm/maintenance/${it.maintenance_id}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">↗</a>
-      </div>
+        <span style="color:var(--blue);margin-left:auto">↗</span>
+      </a>
     `;
   }).join('') || '<div class="faint" style="font-size:12px">No repairs.</div>';
   const qaLink = r.qa_group_id
