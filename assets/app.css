@@ -1087,12 +1087,18 @@ tr.expansion td {
 .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
 
 .detail-drawer {
-  position: fixed; top: 0; right: 0; height: 100vh; width: 480px; max-width: 95vw;
+  position: fixed; top: 0; right: 0; height: 100vh;
+  width: min(820px, 60vw); max-width: 95vw;
   background: var(--surface); border-left: 1px solid var(--border);
   box-shadow: -8px 0 24px rgba(0,0,0,0.10);
   transform: translateX(100%); transition: transform .22s ease;
   display: flex; flex-direction: column;
   z-index: 100;
+}
+.dr-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.dr-grid-2 .dr-section { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+@media (max-width: 720px) {
+  .dr-grid-2 { grid-template-columns: 1fr; }
 }
 .detail-drawer.open { transform: translateX(0); }
 

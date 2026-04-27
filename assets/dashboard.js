@@ -689,7 +689,7 @@ function render() {
 
   const tbody = document.getElementById('homesBody');
   if (!total) {
-    tbody.innerHTML = `<tr><td colspan="8">
+    tbody.innerHTML = `<tr><td colspan="7">
       <div class="empty-state">
         <div class="empty-icon">🏠</div>
         <div class="empty-title">${allRows.length ? 'No matches' : 'No homes yet'}</div>
@@ -725,18 +725,22 @@ function rowHtml(r) {
   const handoffFlag = handedOff ? ` <span class="lease-type-tag" title="Handed off to concierge">🤝</span>` : '';
   const noQaFlag    = !r.qa_group_id ? ` <span class="no-qa-flag" title="No QA inspection record on file">NO QA</span>` : '';
 
+  const misLine = r.move_in_specialist
+    ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.move_in_specialist)}</div>` : '';
+  const hqsLine = r.improvements_specialist
+    ? `<div style="font-size:10px;color:var(--faint)">HQS · ${escapeHtml(r.improvements_specialist)}</div>` : '';
+
   return `
     <tr onclick="openDrawer(${r.home_id})">
       <td>
         <span class="addr-link">${escapeHtml(r.address || '—')}</span>${fastFlag}${critFlag}${handoffFlag}${noQaFlag}
         ${r.is_revised ? `<div style="margin-top:3px"><span class="lease-type-tag">Revised</span></div>` : ''}
-        ${r.move_in_specialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.move_in_specialist)}</div>` : ''}
+        ${misLine}${hqsLine}
       </td>
       <td style="font-size:12px">${escapeHtml(r.resident_name || '—')}</td>
       <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${formatDateNumeric(r.lease_start_on)}</td>
       <td>${paymentBadge}</td>
       <td>${hoaBadge}</td>
-      <td style="font-size:11px;color:var(--muted)">${escapeHtml(r.improvements_specialist || '—')}</td>
       <td>
         <span class="status-badge status-${state}">${stateLabel}${manualPill}</span>
       </td>
@@ -841,9 +845,13 @@ function renderDrawer() {
     (drawerDraft.delayContext != null && drawerDraft.delayContext !== (ctx.delay_context || '')) ||
     (drawerDraft.delayOther   != null && drawerDraft.delayOther   !== (ctx.delay_other_text || ''));
 
+  const misName = r.move_in_specialist ? `MIS · ${escapeHtml(r.move_in_specialist)}` : '';
+  const hqsName = r.improvements_specialist ? `HQS · ${escapeHtml(r.improvements_specialist)}` : '';
+  const specLine = [misName, hqsName].filter(Boolean).join(' &nbsp;·&nbsp; ');
   document.getElementById('drawerTitle').innerHTML = `
     <a href="${escapeAttr(d.admin_link)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${escapeHtml(r.address || '—')} ↗</a>
     <small>${escapeHtml(r.resident_name || '—')} · Move-in ${formatDateNumeric(r.lease_start_on)}</small>
+    ${specLine ? `<small>${specLine}</small>` : ''}
   `;
 
   // Status section
@@ -953,8 +961,13 @@ function renderDrawer() {
     </div>
   `;
 
-  document.getElementById('drawerBody').innerHTML =
-    statusHtml + handoffHtml + delayHtml + notesHtml + repairsHtml + paymentHtml;
+  // Lay status + handoff side-by-side, payment + repairs-summary side-by-side
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="dr-section"><div class="dr-grid-2">${statusHtml}${handoffHtml}</div></div>
+    ${delayHtml}
+    ${notesHtml}
+    <div class="dr-section"><div class="dr-grid-2">${paymentHtml}${repairsHtml}</div></div>
+  `;
 }
 
 // Drawer event handlers — write through then re-load context
