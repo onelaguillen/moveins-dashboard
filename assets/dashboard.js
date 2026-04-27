@@ -181,6 +181,7 @@ async function loadData() {
     populateSelectOptions();
     renderMetrics();
     syncUiFromState();
+    syncUrlFromState();
     applyFilters();
   } catch (err) {
     console.error(err);
@@ -476,6 +477,7 @@ function clearFilters() {
 
 function persistFilters() {
   try { localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ ...filterState, pageSize })); } catch {}
+  syncUrlFromState();
 }
 function restoreFilters() {
   try {
@@ -531,10 +533,43 @@ function applyUrlParams() {
       filterState.columnFilters[key] = valuesCsv.split(',').filter(Boolean);
     }
   }
-  // Don't persist URL params back to localStorage — they're a one-shot view.
-  // Strip params from the URL so Clear works normally and a refresh = fresh visit.
-  try { history.replaceState({}, '', window.location.pathname); } catch {}
   return true;
+}
+
+// Build a URL query string from filterState (mirror of applyUrlParams).
+function buildUrlFromState() {
+  const p = new URLSearchParams();
+  if (filterState.statusCard)            p.set('status', filterState.statusCard);
+  if (filterState.dateFrom)              p.set('dateFrom', filterState.dateFrom);
+  if (filterState.dateTo)                p.set('dateTo', filterState.dateTo);
+  if (filterState.misNames?.length)       p.set('mis', filterState.misNames.join(','));
+  if (filterState.hqsNames?.length)       p.set('hqs', filterState.hqsNames.join(','));
+  if (filterState.conciergeNames?.length) p.set('concierge', filterState.conciergeNames.join(','));
+  if (filterState.fastMoveIn)            p.set('fast', '1');
+  if (filterState.noQaOnly)              p.set('noQa', '1');
+  if (filterState.unpricedOnly)          p.set('unpriced', '1');
+  if (filterState.requiredOnly)          p.set('required', '1');
+  if (filterState.showHandedOff)         p.set('handedOff', '1');
+  if ((filterState.q || '').trim())      p.set('q', filterState.q.trim());
+  // Column filters
+  const colKeys = Object.keys(filterState.columnFilters || {});
+  if (colKeys.length) {
+    const groups = colKeys
+      .filter(k => (filterState.columnFilters[k] || []).length)
+      .map(k => `${k}:${filterState.columnFilters[k].join(',')}`);
+    if (groups.length) p.set('colFilter', groups.join('|'));
+  }
+  return p;
+}
+
+// Sync URL to current filter state (so links are shareable/bookmarkable).
+function syncUrlFromState() {
+  try {
+    const p = buildUrlFromState();
+    const qs = p.toString();
+    const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    history.replaceState({}, '', newUrl);
+  } catch {}
 }
 
 // Sync every visual indicator (chips, metric card, date picker, column filters)
