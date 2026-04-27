@@ -888,13 +888,14 @@ function renderDrawer() {
       <div class="dr-h">Delay${isDelayed ? ' · logged' : ''}</div>
       <div class="dr-chip-grid">${chipsHtml}</div>
       ${otherSelected ? `
-        <input class="dr-input" type="text" placeholder="Specify 'other' reason…" value="${escapeAttr(otherText)}" oninput="drawerDraft.delayOther = this.value; renderDrawer()" style="margin-bottom:8px">
+        <input class="dr-input" type="text" placeholder="Specify 'other' reason…" value="${escapeAttr(otherText)}" oninput="drawerDraft.delayOther = this.value; updateDelayDirty()" style="margin-bottom:8px">
       ` : ''}
-      <textarea class="dr-textarea" placeholder="Context (what happened, ETA, who's blocking)…" oninput="drawerDraft.delayContext = this.value">${escapeHtml(ctxText)}</textarea>
+      <textarea class="dr-textarea" placeholder="Context (what happened, ETA, who's blocking)…" oninput="drawerDraft.delayContext = this.value; updateDelayDirty()">${escapeHtml(ctxText)}</textarea>
       <div class="dr-actions">
-        <button class="dr-btn dr-btn-primary" ${delayDirty ? '' : 'disabled'} onclick="onSaveDelay()">Save delay</button>
+        <button class="dr-btn dr-btn-primary" id="drDelaySaveBtn" ${delayDirty ? '' : 'disabled'} onclick="onSaveDelay()">Save delay</button>
         ${isDelayed ? `<button class="dr-btn dr-btn-ghost" onclick="onClearDelay()">Clear delay</button>` : ''}
-        ${delayDirty ? `<span class="dr-dirty-stamp">Unsaved</span>` : (ctx.delay_logged_at ? `<span class="dr-saved-stamp">Saved ${formatDateNumeric(ctx.delay_logged_at)}</span>` : '')}
+        <span class="dr-dirty-stamp" id="drDelayDirty" style="${delayDirty ? '' : 'display:none'}">Unsaved</span>
+        ${ctx.delay_logged_at && !delayDirty ? `<span class="dr-saved-stamp">Saved ${formatDateNumeric(ctx.delay_logged_at)}</span>` : ''}
       </div>
     </div>
   `;
@@ -914,11 +915,15 @@ function renderDrawer() {
   // Repairs section
   const repItems = r.repairs.map(it => {
     const open = it.status !== 'done';
+    const costHtml = it.repair_estimated_cost != null
+      ? `<span class="dr-rep-tag" style="font-family:ui-monospace,monospace">$${Number(it.repair_estimated_cost).toLocaleString()}</span>`
+      : `<span class="dr-rep-tag" style="color:var(--faint);font-style:italic">Not priced</span>`;
     return `
       <div class="dr-repair-item">
         <span class="dr-rep-id">#${escapeHtml(String(it.maintenance_id))}</span>
         <span class="dr-rep-title">${escapeHtml(it.repair_summary || '—')}</span>
         ${it.repair_assessment ? `<span class="dr-rep-tag">${escapeHtml(it.repair_assessment)}</span>` : ''}
+        ${costHtml}
         <span class="dr-rep-tag" style="${open ? 'color:var(--amber);border-color:var(--amber-border);background:var(--amber-dim)' : 'color:var(--green);border-color:var(--green-border);background:var(--green-dim)'}">${escapeHtml(it.status)}</span>
         <a href="https://foundation.bln.hm/maintenance/${it.maintenance_id}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">↗</a>
       </div>
@@ -1030,6 +1035,24 @@ async function onSaveNotes() {
     showToast('Notes saved', 'success');
   } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
 }
+function updateDelayDirty() {
+  const r = allRows.find(h => h.home_id === drawerHomeId);
+  if (!r) return;
+  const ctx = r.context || {};
+  const reasons = drawerDraft.delayReasons != null ? drawerDraft.delayReasons : (ctx.delay_reasons || []);
+  const ctxText = drawerDraft.delayContext != null ? drawerDraft.delayContext : (ctx.delay_context || '');
+  const otherText = drawerDraft.delayOther != null ? drawerDraft.delayOther : (ctx.delay_other_text || '');
+  const dirty =
+    (drawerDraft.delayReasons != null && JSON.stringify(reasons) !== JSON.stringify(ctx.delay_reasons || [])) ||
+    (drawerDraft.delayContext != null && ctxText !== (ctx.delay_context || '')) ||
+    (drawerDraft.delayOther   != null && otherText !== (ctx.delay_other_text || ''));
+  const btn = document.getElementById('drDelaySaveBtn');
+  const flag = document.getElementById('drDelayDirty');
+  if (btn) btn.disabled = !dirty;
+  if (flag) flag.style.display = dirty ? '' : 'none';
+}
+window.updateDelayDirty = updateDelayDirty;
+
 function updateNotesDirty() {
   // Lightweight: update only the Save button + dirty flag without full re-render
   const r = allRows.find(h => h.home_id === drawerHomeId);
