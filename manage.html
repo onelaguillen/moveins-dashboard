@@ -59,6 +59,20 @@
       </div>
     </div>
 
+    <!-- Daily snapshots (analytics) -->
+    <div style="margin-bottom:28px">
+      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>📸 Daily Snapshots</span>
+        <button class="btn btn-ghost" onclick="takeSnapshotNow()" id="snapshotNowBtn" style="font-size:11px;padding:4px 10px">Take snapshot now</button>
+      </div>
+      <div class="faint" style="font-size:11px;margin-bottom:8px">
+        Nightly cron at 06:00 UTC writes a frozen copy of <code>homes</code> for trend analytics. Delete a date to remove its row from charts.
+      </div>
+      <div id="snapshotList" class="card" style="padding:0">
+        <div class="faint" style="font-size:12px;padding:12px 16px">Loading…</div>
+      </div>
+    </div>
+
     <!-- Claude repair-context JSON upload -->
     <div style="margin-bottom:32px">
       <div class="section-title">2. Upload Repair Context (JSON)</div>

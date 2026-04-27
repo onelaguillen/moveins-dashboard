@@ -61,6 +61,7 @@ const TABLE_SCHEMAS = {
   setupJsonDropZone();
   await loadHomes();
   await renderSyncHistory();
+  await renderSnapshots();
 })();
 
 // ── Online users panel ───────────────────────────────────────────────────────
@@ -678,6 +679,76 @@ async function handleJson(file) {
   if (missing.length) console.warn('Unknown home_ids from repair JSON:', missing);
   setTimeout(() => { progress.style.display = 'none'; fill.style.width = '0%'; }, 6000);
   showToast(`✅ ${uploaded} repair contexts updated${warn}`, missing.length ? '' : 'success');
+}
+
+// ── Daily Snapshots ──────────────────────────────────────────────────────────
+async function renderSnapshots() {
+  const container = document.getElementById('snapshotList');
+  if (!container) return;
+  try {
+    const dates = await dataSource.getSnapshotDates();
+    if (!dates.length) {
+      container.innerHTML = `<div class="faint" style="font-size:12px;padding:12px 16px">
+        No snapshots yet. The first one runs tonight at 06:00 UTC, or click "Take snapshot now" above.
+      </div>`;
+      return;
+    }
+    container.innerHTML = `
+      <table style="width:100%;font-size:12px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:8px 16px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border)">Date</th>
+            <th style="text-align:right;padding:8px 16px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border)">Rows</th>
+            <th style="width:90px;border-bottom:1px solid var(--border)"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${dates.map(d => `
+            <tr>
+              <td style="padding:8px 16px;font-family:ui-monospace,monospace">${escapeHtml(d.snapshot_date)}</td>
+              <td style="padding:8px 16px;text-align:right;color:var(--muted)">${d.row_count}</td>
+              <td style="padding:6px 16px;text-align:right">
+                <button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;color:var(--red);border-color:var(--red-border)" onclick="confirmDeleteSnapshot('${escapeAttr(d.snapshot_date)}', ${d.row_count})">Delete</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px 16px">Failed to load snapshots: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function takeSnapshotNow() {
+  const btn = document.getElementById('snapshotNowBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
+  try {
+    const count = await dataSource.takeSnapshotNow();
+    showToast(`✅ Snapshot saved · ${count} rows`, 'success');
+    await renderSnapshots();
+  } catch (err) {
+    showToast('Snapshot failed: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Take snapshot now'; }
+  }
+}
+window.takeSnapshotNow = takeSnapshotNow;
+
+function confirmDeleteSnapshot(date, count) {
+  if (!confirm(`Delete the snapshot from ${date}?\n\n${count} rows will be permanently removed and won't appear in any analytics chart.\n\nThis cannot be undone.`)) return;
+  doDeleteSnapshot(date);
+}
+window.confirmDeleteSnapshot = confirmDeleteSnapshot;
+
+async function doDeleteSnapshot(date) {
+  try {
+    await dataSource.deleteSnapshot(date);
+    showToast(`Snapshot ${date} deleted`, 'success');
+    await renderSnapshots();
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, 'error');
+  }
 }
 
 // ── Utils ────────────────────────────────────────────────────────────────────
