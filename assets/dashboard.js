@@ -156,10 +156,10 @@ let currentUserEmail = null;
   await loadData();
 })();
 
-const ADMIN_EMAILS = ['guillen.onela@belonghome.com', 'quiroga.veronica@belonghome.com'];
 function canDeleteEntry(entry) {
   if (!entry || !currentUserEmail) return false;
-  if (ADMIN_EMAILS.includes(currentUserEmail.toLowerCase())) return true;
+  // ADMIN_EMAILS (Set) is defined in supabase.js
+  if (typeof isAdmin === 'function' && isAdmin(currentUserEmail)) return true;
   return (entry.created_by_email || '').toLowerCase() === currentUserEmail.toLowerCase();
 }
 
