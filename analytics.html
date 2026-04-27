@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics — Belong</title>
+<link rel="icon" href="https://belonghome.com/favicon.ico">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+
+<div id="loadingState" class="loading-screen">Checking access…</div>
+
+<div id="pageContent" style="display:none">
+  <div id="appHeader"></div>
+
+  <div class="page">
+
+    <!-- Filter row (same controls as dashboard) -->
+    <div class="filter-row">
+      <div class="date-group">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        <input type="text" class="date-input date-range" id="aDateRange" placeholder="Lease-start range…" readonly>
+        <button type="button" class="date-clear" id="aDateClear" title="Clear dates" aria-label="Clear dates" style="display:none">×</button>
+      </div>
+
+      <div style="display:flex;gap:6px">
+        <button class="chip-btn" id="achip_this_month" onclick="setAnalyticsChip('this_month')">This Month</button>
+        <button class="chip-btn" id="achip_last_month" onclick="setAnalyticsChip('last_month')">Last Month</button>
+        <button class="chip-btn" id="achip_30_days" onclick="setAnalyticsChip('30_days')">Last 30 Days</button>
+        <button class="chip-btn" id="achip_90_days" onclick="setAnalyticsChip('90_days')">Last 90 Days</button>
+        <button class="chip-btn" id="achip_all_time" onclick="setAnalyticsChip('all_time')">All Time</button>
+      </div>
+
+      <button type="button" class="select-input multi-trigger" id="aSpecialistBtn" onclick="toggleAnalyticsSpecialistMenu(event)">
+        <span id="aSpecialistLabel">All specialists</span>
+        <span class="caret">▾</span>
+      </button>
+
+      <span class="cohort-count" id="aCohortCount" style="margin-left:auto;font-size:12px;color:var(--muted)">Loading…</span>
+    </div>
+
+    <!-- Hero KPI strip -->
+    <div class="kpi-strip" id="aKpiStrip">
+      <div class="kpi-card kpi-skel"><div class="skel" style="width:90px;height:14px"></div></div>
+      <div class="kpi-card kpi-skel"><div class="skel" style="width:90px;height:14px"></div></div>
+      <div class="kpi-card kpi-skel"><div class="skel" style="width:90px;height:14px"></div></div>
+      <div class="kpi-card kpi-skel"><div class="skel" style="width:90px;height:14px"></div></div>
+      <div class="kpi-card kpi-skel"><div class="skel" style="width:90px;height:14px"></div></div>
+    </div>
+
+    <!-- Volume & timing -->
+    <div class="ana-section">
+      <div class="ana-section-title">📅 Volume &amp; Timing</div>
+      <div class="ana-grid-2">
+        <div class="ana-card">
+          <div class="ana-card-title">Move-ins per month</div>
+          <canvas id="chartByMonth" height="160"></canvas>
+          <div class="ana-card-note" id="byMonthNote"></div>
+        </div>
+        <div class="ana-card">
+          <div class="ana-card-title">Move-ins by region</div>
+          <canvas id="chartByRegion" height="160"></canvas>
+          <div class="ana-card-note" id="byRegionNote"></div>
+        </div>
+      </div>
+      <div class="ana-card">
+        <div class="ana-card-title">Lease-execution lead time (business days before lease start)</div>
+        <canvas id="chartLeadTime" height="120"></canvas>
+        <div class="ana-card-note" id="leadTimeNote"></div>
+      </div>
+    </div>
+
+    <!-- Readiness funnel -->
+    <div class="ana-section">
+      <div class="ana-section-title">✅ Readiness</div>
+      <div class="ana-grid-2">
+        <div class="ana-card">
+          <div class="ana-card-title">Status breakdown</div>
+          <canvas id="chartStatus" height="160"></canvas>
+          <div class="ana-card-note" id="statusNote"></div>
+        </div>
+        <div class="ana-card">
+          <div class="ana-card-title">Readiness checks (% of cohort)</div>
+          <div id="readinessChecks" class="readiness-checks-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Repairs -->
+    <div class="ana-section">
+      <div class="ana-section-title">🔧 Repairs</div>
+      <div class="ana-kpi-row" id="repairKpis"></div>
+      <div class="ana-grid-2">
+        <div class="ana-card">
+          <div class="ana-card-title">Repairs per home — by HQS</div>
+          <canvas id="chartRepairsByHqs" height="160"></canvas>
+          <div class="ana-card-note" id="repairsByHqsNote"></div>
+        </div>
+        <div class="ana-card">
+          <div class="ana-card-title">Required vs Recommended (open repairs)</div>
+          <canvas id="chartAssessment" height="160"></canvas>
+          <div class="ana-card-note" id="assessmentNote"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delays -->
+    <div class="ana-section">
+      <div class="ana-section-title">⏳ Delays</div>
+      <div class="ana-grid-2">
+        <div class="ana-card">
+          <div class="ana-card-title">Top delay reasons</div>
+          <canvas id="chartDelays" height="160"></canvas>
+          <div class="ana-card-note" id="delaysNote"></div>
+        </div>
+        <div class="ana-card">
+          <div class="ana-card-title">Manual overrides &amp; handoff</div>
+          <div id="delaysSidebar" class="manual-status-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- People -->
+    <div class="ana-section">
+      <div class="ana-section-title">👤 People</div>
+      <div class="ana-card">
+        <div class="ana-card-title">Per-MIS breakdown</div>
+        <div style="overflow-x:auto"><table class="ppl-table" id="misTable"></table></div>
+      </div>
+      <div class="ana-card">
+        <div class="ana-card-title">Per-HQS breakdown</div>
+        <div style="overflow-x:auto"><table class="ppl-table" id="hqsTable"></table></div>
+      </div>
+    </div>
+
+    <!-- CSAT -->
+    <div class="ana-section">
+      <div class="ana-section-title">⭐ CSAT</div>
+      <div class="ana-grid-2">
+        <div class="ana-card">
+          <div class="ana-card-title">CSAT response distribution</div>
+          <canvas id="chartCsat" height="160"></canvas>
+          <div class="ana-card-note" id="csatNote"></div>
+        </div>
+        <div class="ana-card">
+          <div class="ana-card-title">Score distribution</div>
+          <canvas id="chartCsatScore" height="160"></canvas>
+          <div class="ana-card-note" id="csatScoreNote"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trends (snapshot-driven) -->
+    <div class="ana-section">
+      <div class="ana-section-title">📈 Trends (from snapshots)</div>
+      <div class="ana-card">
+        <div class="ana-card-title">Daily counts (Total · Ready · In Progress · Urgent)</div>
+        <canvas id="chartTrends" height="180"></canvas>
+        <div class="ana-card-note" id="trendsNote"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/assets/supabase.js"></script>
+<script src="/assets/dataSource.js"></script>
+<script src="/assets/derive.js"></script>
+<script src="/assets/nav.js"></script>
+<script src="/assets/analytics.js"></script>
+</body>
+</html>

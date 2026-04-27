@@ -431,6 +431,25 @@ function restoreFilters() {
     const ps = document.getElementById('pageSizeSelect');
     if (ps) ps.value = String(pageSize);
   } catch {}
+
+  // URL params override stored filters (used for drill-downs from analytics).
+  applyUrlParams();
+}
+
+function applyUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  if (!p.toString()) return;
+  if (p.has('status'))     filterState.statusCard = p.get('status');
+  if (p.has('dateFrom'))   filterState.dateFrom   = p.get('dateFrom');
+  if (p.has('dateTo'))     filterState.dateTo     = p.get('dateTo');
+  if (p.has('mis'))        filterState.misNames   = p.get('mis').split(',').filter(Boolean);
+  if (p.has('hqs'))        filterState.hqsNames   = p.get('hqs').split(',').filter(Boolean);
+  if (p.has('fast'))       filterState.fastMoveIn = p.get('fast') === '1';
+  if (p.has('noQa'))       filterState.noQaOnly   = p.get('noQa') === '1';
+  if (p.has('unpriced'))   filterState.unpricedOnly = p.get('unpriced') === '1';
+  if (p.has('handedOff'))  filterState.showHandedOff = p.get('handedOff') === '1';
+  if (p.has('q'))          filterState.q          = p.get('q');
+  // Don't persist URL params back to localStorage — they're a one-shot view.
 }
 
 // ── Metric cards ─────────────────────────────────────────────────────────────

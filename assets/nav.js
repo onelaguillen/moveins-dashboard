@@ -26,6 +26,7 @@ async function mountHeader({ page, session }) {
 
         <nav class="nav-links">
           <a href="/" class="nav-link ${page === 'dashboard' ? 'active' : ''}">Dashboard</a>
+          <a href="/analytics" class="nav-link ${page === 'analytics' ? 'active' : ''}">Analytics</a>
           <a href="/ready" class="nav-link ${page === 'ready' ? 'active' : ''}">Ready</a>
           ${isAdminUser ? `<a href="/manage" class="nav-link ${page === 'manage' ? 'active' : ''}">Manage</a>` : ''}
         </nav>
