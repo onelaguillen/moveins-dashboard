@@ -64,11 +64,17 @@ async function loadData() {
 }
 
 async function loadSnapshots() {
-  // Load up to 90 days back so trend chart has reasonable history.
-  const ninetyAgo = new Date();
-  ninetyAgo.setDate(ninetyAgo.getDate() - 90);
-  const fromDate = ninetyAgo.toISOString().slice(0, 10);
+  // Cheap probe first: only fetch full snapshots if we have ≥2 days of history.
   try {
+    const dates = await dataSource.getSnapshotDates();
+    if (!dates || dates.length < 2) {
+      snapshots = [];
+      return;
+    }
+    // Pull the last 30 days only (cap on payload).
+    const thirtyAgo = new Date();
+    thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+    const fromDate = thirtyAgo.toISOString().slice(0, 10);
     snapshots = await dataSource.getSnapshots(fromDate, null);
   } catch (err) {
     console.warn('No snapshots loaded:', err.message);

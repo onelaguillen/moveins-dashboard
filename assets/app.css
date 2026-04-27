@@ -1304,6 +1304,20 @@ tbody tr:not(.expansion):hover { background: var(--surface2); }
   font-size: 12px; font-weight: 600; color: var(--text);
   margin-bottom: 10px;
 }
+.ana-card canvas {
+  max-height: 200px !important;
+  height: 200px !important;
+}
+.ana-card canvas#chartCsat,
+.ana-card canvas#chartAssessment,
+.ana-card canvas#chartStatus {
+  max-height: 220px !important;
+  height: 220px !important;
+}
+.ana-card canvas#chartTrends {
+  max-height: 240px !important;
+  height: 240px !important;
+}
 .ana-card-note {
   font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5;
 }
