@@ -63,9 +63,11 @@ payments_summary AS (
 qa_parent AS (
   SELECT HomeId, MaintenanceId AS QAGroupId, CreatedOn
   FROM `dwh.Maintenance`
-  WHERE RequestCategory = 'QA'
-    AND Summary = 'Quality Assurance'
-    AND HomeId IN (SELECT HomeId FROM cohort)
+  WHERE HomeId IN (SELECT HomeId FROM cohort)
+    AND (
+      (RequestCategory = 'QA' AND Summary = 'Quality Assurance')
+      OR Summary = 'Post Improvements QA'
+    )
   QUALIFY ROW_NUMBER() OVER (PARTITION BY HomeId ORDER BY CreatedOn DESC) = 1
 ),
 qa_summary AS (

@@ -54,7 +54,10 @@
       </div>
 
       <select class="select-input" id="fRegion"><option value="">All regions</option></select>
-      <select class="select-input" id="fSpecialist"><option value="">All specialists</option></select>
+      <button type="button" class="select-input multi-trigger" id="fSpecialistBtn" onclick="toggleSpecialistMenu(event)">
+        <span id="fSpecialistLabel">All specialists</span>
+        <span class="caret">▾</span>
+      </button>
 
       <button class="btn btn-ghost" id="fClear" style="margin-left:auto">Clear</button>
     </div>
@@ -98,6 +101,16 @@
     </div>
   </div>
 </div>
+
+<!-- Detail drawer (slides from right) -->
+<div id="drawerBackdrop" class="drawer-backdrop" onclick="closeDrawer()"></div>
+<aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div class="drawer-title" id="drawerTitle">—</div>
+    <button class="drawer-close" onclick="closeDrawer()" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

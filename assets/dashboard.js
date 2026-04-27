@@ -16,12 +16,35 @@ const filterState = {
   dateTo: '',
   dateChip: '',       // 'overdue' | 'this_week' | '30_days' | ''
   region: '',
-  spec: '',
+  // Combined specialists: arrays of names. OR within section, AND across sections.
+  misNames: [],
+  hqsNames: [],
   fastMoveIn: false,
   noQaOnly: false,
   showHandedOff: false, // hide handed-off homes by default
   columnFilters: {}
 };
+
+// Delay reason chip presets
+const DELAY_REASON_OPTIONS = [
+  { value: 'waiting_resident',   label: 'Waiting on resident' },
+  { value: 'pro_delay',          label: 'Pro delay' },
+  { value: 'vendor_reschedule',  label: 'Vendor reschedule' },
+  { value: 'hoa',                label: 'HOA' },
+  { value: 'payment',            label: 'Payment' },
+  { value: 'parts_materials',    label: 'Parts / materials' },
+  { value: 'inspection',         label: 'Inspection / QA' },
+  { value: 'other',              label: 'Other' }
+];
+
+// Manual status options
+const MANUAL_STATUS_OPTIONS = [
+  { value: 'on_track',   label: 'On Track' },
+  { value: 'at_risk',    label: 'At Risk' },
+  { value: 'urgent',     label: 'Urgent' },
+  { value: 'blocked',    label: 'Blocked' },
+  { value: 'handed_off', label: 'Handed Off' }
+];
 
 // Column-filter config: per-column filter options + predicate.
 const COLUMN_FILTERS = {
@@ -47,10 +70,13 @@ const COLUMN_FILTERS = {
   Status: {
     label: 'Status',
     options: [
-      { value: 'ready',        label: 'Ready',        test: r => r.derived.derived_ready_state === 'ready' },
-      { value: 'in_progress',  label: 'In Progress',  test: r => r.derived.derived_ready_state === 'in_progress' },
-      { value: 'urgent',       label: 'Urgent',       test: r => r.derived.derived_ready_state === 'urgent' },
-      { value: 'handed_off',   label: 'Handed off',   test: r => !!r.context?.handed_off_to_concierge }
+      { value: 'ready',        label: 'Ready',        test: r => r.derived.effective_status === 'ready' },
+      { value: 'on_track',     label: 'On Track',     test: r => r.derived.effective_status === 'on_track' },
+      { value: 'in_progress',  label: 'In Progress',  test: r => r.derived.effective_status === 'in_progress' },
+      { value: 'at_risk',      label: 'At Risk',      test: r => r.derived.effective_status === 'at_risk' },
+      { value: 'urgent',       label: 'Urgent',       test: r => r.derived.effective_status === 'urgent' },
+      { value: 'blocked',      label: 'Blocked',      test: r => r.derived.effective_status === 'blocked' },
+      { value: 'handed_off',   label: 'Handed off',   test: r => r.derived.effective_status === 'handed_off' || !!r.context?.handed_off_to_concierge }
     ]
   },
   HQS: {
@@ -75,7 +101,7 @@ const SORT_KEYS = {
   Payment:        r => (r.derived.payment_status || '').toLowerCase(),
   HOA:            r => (r.has_hoa ? 1 : 0) + (r.hoa_is_notified ? 0.5 : 0),
   HQS:            r => (r.improvements_specialist || '').toLowerCase(),
-  Status:         r => r.derived.derived_ready_state || ''
+  Status:         r => r.derived.effective_status || ''
 };
 
 function setSort(key) {
@@ -88,8 +114,10 @@ function setSort(key) {
   applyFilters();
 }
 
-// Row expansion state: Map<homeId, Set<'repairs'|'status'|'payment'>>
-const expanded = new Map();
+// Drawer state: which home is open (or null).
+let drawerHomeId = null;
+// In-memory dirty buffers for drawer fields (not yet saved).
+const drawerDraft = { notes: null, delayReasons: null, delayContext: null, delayOther: null };
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
@@ -147,10 +175,10 @@ function wireFilters() {
   document.getElementById('fRegion').addEventListener('change', e => {
     filterState.region = e.target.value; persistFilters(); applyFilters();
   });
-  document.getElementById('fSpecialist').addEventListener('change', e => {
-    filterState.spec = e.target.value; persistFilters(); applyFilters();
-  });
   document.getElementById('fClear').addEventListener('click', clearFilters);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeDrawer(); closeSpecialistMenu(); }
+  });
 }
 
 function initDateRangePicker() {
@@ -194,13 +222,105 @@ function updateDateClearUI() {
 
 function populateSelectOptions() {
   const regionSel = document.getElementById('fRegion');
-  const specSel   = document.getElementById('fSpecialist');
   const regions = [...new Set(allRows.map(r => r.region).filter(Boolean))].sort();
-  const specs   = [...new Set(allRows.map(r => r.move_in_specialist).filter(Boolean))].sort();
   regionSel.innerHTML = `<option value="">All regions</option>` +
     regions.map(r => `<option${r === filterState.region ? ' selected' : ''}>${escapeHtml(r)}</option>`).join('');
-  specSel.innerHTML = `<option value="">All specialists</option>` +
-    specs.map(s => `<option${s === filterState.spec ? ' selected' : ''}>${escapeHtml(s)}</option>`).join('');
+  updateSpecialistButtonLabel();
+}
+
+function updateSpecialistButtonLabel() {
+  const btn = document.getElementById('fSpecialistBtn');
+  const lbl = document.getElementById('fSpecialistLabel');
+  if (!btn || !lbl) return;
+  const m = filterState.misNames || [];
+  const h = filterState.hqsNames || [];
+  const total = m.length + h.length;
+  if (total === 0) { lbl.textContent = 'All specialists'; btn.classList.remove('has-active'); return; }
+  btn.classList.add('has-active');
+  const parts = [];
+  if (m.length) parts.push(`MIS: ${m.length === 1 ? m[0] : m.length}`);
+  if (h.length) parts.push(`HQS: ${h.length === 1 ? h[0] : h.length}`);
+  lbl.textContent = parts.join(' · ');
+}
+
+// Combined MIS+HQS multi-select popover
+function toggleSpecialistMenu(event) {
+  event.stopPropagation();
+  const existing = document.getElementById('specialistPop');
+  if (existing) { existing.remove(); return; }
+  const anchor = document.getElementById('fSpecialistBtn');
+  const misNames = [...new Set(allRows.map(r => r.move_in_specialist).filter(Boolean))].sort();
+  const hqsNames = [...new Set(allRows.map(r => r.improvements_specialist).filter(Boolean))].sort();
+  const misSel = new Set(filterState.misNames || []);
+  const hqsSel = new Set(filterState.hqsNames || []);
+
+  const pop = document.createElement('div');
+  pop.id = 'specialistPop';
+  pop.className = 'multi-pop';
+  pop.innerHTML = `
+    <div class="mp-section-title">MIS — Move-In Specialist</div>
+    <div class="mp-list" data-section="mis">
+      ${misNames.length
+        ? misNames.map(n => `
+          <label class="mp-opt">
+            <input type="checkbox" data-section="mis" value="${escapeAttr(n)}" ${misSel.has(n) ? 'checked' : ''}>
+            <span>${escapeHtml(n)}</span>
+          </label>
+        `).join('')
+        : '<div class="faint" style="padding:6px">No MIS</div>'}
+    </div>
+    <div class="mp-divider"></div>
+    <div class="mp-section-title">HQS — Home Quality Specialist</div>
+    <div class="mp-list" data-section="hqs">
+      ${hqsNames.length
+        ? hqsNames.map(n => `
+          <label class="mp-opt">
+            <input type="checkbox" data-section="hqs" value="${escapeAttr(n)}" ${hqsSel.has(n) ? 'checked' : ''}>
+            <span>${escapeHtml(n)}</span>
+          </label>
+        `).join('')
+        : '<div class="faint" style="padding:6px">No HQS</div>'}
+    </div>
+    <div class="mp-actions">
+      <button type="button" class="mp-clear">Clear</button>
+      <button type="button" class="mp-apply">Apply</button>
+    </div>
+  `;
+  document.body.appendChild(pop);
+  const rect = anchor.getBoundingClientRect();
+  pop.style.top  = (window.scrollY + rect.bottom + 4) + 'px';
+  pop.style.left = (window.scrollX + rect.left) + 'px';
+
+  pop.querySelector('.mp-apply').onclick = () => {
+    filterState.misNames = [...pop.querySelectorAll('input[data-section="mis"]:checked')].map(i => i.value);
+    filterState.hqsNames = [...pop.querySelectorAll('input[data-section="hqs"]:checked')].map(i => i.value);
+    persistFilters(); applyFilters();
+    updateSpecialistButtonLabel();
+    pop.remove();
+  };
+  pop.querySelector('.mp-clear').onclick = () => {
+    filterState.misNames = []; filterState.hqsNames = [];
+    persistFilters(); applyFilters();
+    updateSpecialistButtonLabel();
+    pop.remove();
+  };
+
+  setTimeout(() => {
+    document.addEventListener('click', _closeSpecialistOnOutside, { once: true });
+  }, 0);
+}
+function _closeSpecialistOnOutside(e) {
+  const pop = document.getElementById('specialistPop');
+  if (!pop) return;
+  if (pop.contains(e.target) || e.target.closest('#fSpecialistBtn')) {
+    document.addEventListener('click', _closeSpecialistOnOutside, { once: true });
+    return;
+  }
+  pop.remove();
+}
+function closeSpecialistMenu() {
+  const pop = document.getElementById('specialistPop');
+  if (pop) pop.remove();
 }
 
 function applyFilters() {
@@ -211,19 +331,26 @@ function applyFilters() {
     const handedOff = !!r.context?.handed_off_to_concierge;
     if (handedOff && !filterState.showHandedOff && filterState.statusCard !== 'handed_off') return false;
 
-    // Metric card filter
+    // Metric card filter (uses effective status: manual override wins, else auto-derived)
     if (filterState.statusCard) {
+      const eff = r.derived.effective_status;
       if (filterState.statusCard === 'urgent') {
-        if (r.derived.derived_ready_state !== 'urgent') return false;
+        if (eff !== 'urgent') return false;
       } else if (filterState.statusCard === 'handed_off') {
         if (!handedOff) return false;
       } else {
-        if (r.derived.derived_ready_state !== filterState.statusCard) return false;
+        if (eff !== filterState.statusCard) return false;
       }
     }
 
     if (filterState.region && r.region !== filterState.region) return false;
-    if (filterState.spec   && r.move_in_specialist !== filterState.spec) return false;
+
+    // Combined MIS+HQS filter: OR within each section, AND across sections.
+    const mis = filterState.misNames || [];
+    const hqs = filterState.hqsNames || [];
+    if (mis.length && !mis.includes(r.move_in_specialist)) return false;
+    if (hqs.length && !hqs.includes(r.improvements_specialist)) return false;
+
     if (filterState.fastMoveIn && !r.derived.is_fast_move_in) return false;
     if (filterState.noQaOnly && r.qa_group_id) return false;
 
@@ -272,7 +399,8 @@ function applyFilters() {
 function clearFilters() {
   filterState.q = ''; filterState.statusCard = '';
   filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
-  filterState.region = ''; filterState.spec = '';
+  filterState.region = '';
+  filterState.misNames = []; filterState.hqsNames = [];
   filterState.fastMoveIn = false;
   filterState.noQaOnly = false;
   filterState.showHandedOff = false;
@@ -280,7 +408,7 @@ function clearFilters() {
   document.getElementById('fSearch').value = '';
   if (window._datePicker) window._datePicker.clear();
   document.getElementById('fRegion').value = '';
-  document.getElementById('fSpecialist').value = '';
+  updateSpecialistButtonLabel();
   updateMetricCardsUI();
   updateDateClearUI();
   updateDateChipsUI();
@@ -299,7 +427,9 @@ function restoreFilters() {
     Object.assign(filterState, {
       q: s.q || '', statusCard: s.statusCard || '',
       dateFrom: s.dateFrom || '', dateTo: s.dateTo || '', dateChip: s.dateChip || '',
-      region: s.region || '', spec: s.spec || '',
+      region: s.region || '',
+      misNames: Array.isArray(s.misNames) ? s.misNames : [],
+      hqsNames: Array.isArray(s.hqsNames) ? s.hqsNames : [],
       fastMoveIn: !!s.fastMoveIn,
       noQaOnly:   !!s.noQaOnly,
       showHandedOff: !!s.showHandedOff,
@@ -321,10 +451,10 @@ function computeMetrics() {
     // Total/state counts exclude handed-off so the dashboard stays clean.
     if (handedOff) return;
     m.total++;
-    const s = r.derived.derived_ready_state;
-    if (s === 'ready') m.ready++;
-    else if (s === 'in_progress') m.in_progress++;
-    else if (s === 'urgent') m.urgent++;
+    const s = r.derived.effective_status;
+    if (s === 'ready' || s === 'on_track') m.ready++;
+    else if (s === 'in_progress' || s === 'at_risk') m.in_progress++;
+    else if (s === 'urgent' || s === 'blocked') m.urgent++;
   });
   return m;
 }
@@ -577,33 +707,28 @@ function render() {
 function rowHtml(r) {
   const ctx = r.context || {};
   const d = r.derived;
-  const state = d.derived_ready_state;
+  const state = d.effective_status;
   const stateLabel = labelForState(state);
-  const expSet = expanded.get(r.home_id) || new Set();
 
-  const linkHref = d.admin_link;
   const openRepairs = r.repairs.filter(x => x.status !== 'done');
   const hasRepairs = openRepairs.length > 0;
-  const statusOpen  = expSet.has('status');
-  const repairsOpen = expSet.has('repairs');
-  const paymentOpen = expSet.has('payment');
-  const hasExpansion = statusOpen || repairsOpen || paymentOpen;
 
-  const paymentBadge = paymentBadgeHtml(d.payment_status, r.home_id, paymentOpen, d.payment_blocking_move_in);
+  const paymentBadge = paymentBadgeHtml(d.payment_status, d.payment_blocking_move_in);
   const hoaBadge     = hoaBadgeHtml(r.has_hoa, r.hoa_is_notified);
   const handedOff    = !!ctx.handed_off_to_concierge;
+  const manualPill   = d.manual_status ? ` <span class="dr-manual-pill" title="Manual status override">M</span>` : '';
 
   const fastFlag = d.is_fast_move_in
-    ? ` <span class="fast-moveIn-flag" data-tip="Fast Move-In" onclick="toggleExpansion(${r.home_id}, 'payment')">⚡</span>` : '';
+    ? ` <span class="fast-moveIn-flag" data-tip="Fast Move-In">⚡</span>` : '';
   const critFlag = (d.business_days_to_lease_start != null && d.business_days_to_lease_start <= 3)
-    ? ` <span class="fast-moveIn-flag critical" data-tip="Critical — ${d.business_days_to_lease_start} biz day${d.business_days_to_lease_start === 1 ? '' : 's'} left" onclick="toggleExpansion(${r.home_id}, 'payment')">🚨</span>` : '';
+    ? ` <span class="fast-moveIn-flag critical" data-tip="Critical — ${d.business_days_to_lease_start} biz day${d.business_days_to_lease_start === 1 ? '' : 's'} left">🚨</span>` : '';
   const handoffFlag = handedOff ? ` <span class="lease-type-tag" title="Handed off to concierge">🤝</span>` : '';
   const noQaFlag    = !r.qa_group_id ? ` <span class="no-qa-flag" title="No QA inspection record on file">NO QA</span>` : '';
 
-  const mainRow = `
-    <tr class="${hasExpansion ? 'expanded' : ''}">
+  return `
+    <tr onclick="openDrawer(${r.home_id})">
       <td>
-        <a class="addr-link" href="${escapeAttr(linkHref)}" target="_blank" rel="noopener">${escapeHtml(r.address || '—')}</a>${fastFlag}${critFlag}${handoffFlag}${noQaFlag}
+        <span class="addr-link">${escapeHtml(r.address || '—')}</span>${fastFlag}${critFlag}${handoffFlag}${noQaFlag}
         ${r.is_revised ? `<div style="margin-top:3px"><span class="lease-type-tag">Revised</span></div>` : ''}
         ${r.move_in_specialist ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.move_in_specialist)}</div>` : ''}
       </td>
@@ -613,42 +738,13 @@ function rowHtml(r) {
       <td>${hoaBadge}</td>
       <td style="font-size:11px;color:var(--muted)">${escapeHtml(r.improvements_specialist || '—')}</td>
       <td>
-        <span class="status-badge status-${state} ${statusOpen ? 'active' : ''}">
-          ${stateLabel}
-        </span>
+        <span class="status-badge status-${state}">${stateLabel}${manualPill}</span>
       </td>
       <td>
-        ${hasRepairs ? `
-          <span class="row-action ${repairsOpen ? 'active' : ''}" onclick="toggleExpansion(${r.home_id}, 'repairs')">
-            🔧 ${openRepairs.length}
-          </span>
-        ` : ''}
+        ${hasRepairs ? `<span class="row-action">🔧 ${openRepairs.length}</span>` : ''}
       </td>
     </tr>
   `;
-
-  if (!hasExpansion) return mainRow;
-
-  let expInner = '';
-  if (repairsOpen) {
-    expInner += repairsPanelHtml(r);
-  }
-  if (paymentOpen) {
-    expInner += paymentPanelHtml(r);
-  }
-  if (statusOpen) {
-    expInner += `
-      <div class="exp-section">
-        <div class="exp-header">
-          <span class="exp-label">Status</span>
-          <button class="exp-close" onclick="toggleExpansion(${r.home_id}, 'status')" aria-label="Close">✕</button>
-        </div>
-        <div class="exp-body exp-body-text">${escapeHtml(ctx.repairs_context || ctx.expectations || ctx.postpone_reason || '—')}</div>
-      </div>
-    `;
-  }
-
-  return mainRow + `<tr class="expansion"><td colspan="8"><div class="exp-inner">${expInner}</div></td></tr>`;
 }
 
 function repairsPanelHtml(r) {
@@ -700,13 +796,269 @@ function repairsPanelHtml(r) {
   `;
 }
 
-function toggleExpansion(homeId, kind) {
-  const set = expanded.get(homeId) || new Set();
-  set.has(kind) ? set.delete(kind) : set.add(kind);
-  if (set.size === 0) expanded.delete(homeId);
-  else expanded.set(homeId, set);
-  render();
+// ── Detail drawer ────────────────────────────────────────────────────────────
+function openDrawer(homeId) {
+  drawerHomeId = homeId;
+  drawerDraft.notes = null;
+  drawerDraft.delayReasons = null;
+  drawerDraft.delayContext = null;
+  drawerDraft.delayOther = null;
+  document.getElementById('drawerBackdrop').classList.add('open');
+  document.getElementById('detailDrawer').classList.add('open');
+  document.getElementById('detailDrawer').setAttribute('aria-hidden', 'false');
+  renderDrawer();
 }
+function closeDrawer() {
+  drawerHomeId = null;
+  document.getElementById('drawerBackdrop').classList.remove('open');
+  document.getElementById('detailDrawer').classList.remove('open');
+  document.getElementById('detailDrawer').setAttribute('aria-hidden', 'true');
+}
+window.openDrawer = openDrawer;
+window.closeDrawer = closeDrawer;
+window.toggleSpecialistMenu = toggleSpecialistMenu;
+
+function renderDrawer() {
+  const r = allRows.find(h => h.home_id === drawerHomeId);
+  if (!r) { closeDrawer(); return; }
+  const ctx = r.context || {};
+  const d = r.derived;
+  const state = d.effective_status;
+  const manualSet = !!d.manual_status;
+  const handedOff = !!ctx.handed_off_to_concierge;
+  const isDelayed = !!ctx.is_delayed;
+
+  // Effective draft values (fallback to saved DB values)
+  const notesVal = drawerDraft.notes != null ? drawerDraft.notes : (ctx.repairs_context || '');
+  const reasons  = drawerDraft.delayReasons != null ? drawerDraft.delayReasons : (Array.isArray(ctx.delay_reasons) ? ctx.delay_reasons : []);
+  const ctxText  = drawerDraft.delayContext != null ? drawerDraft.delayContext : (ctx.delay_context || '');
+  const otherText = drawerDraft.delayOther != null ? drawerDraft.delayOther : (ctx.delay_other_text || '');
+  const otherSelected = reasons.includes('other');
+
+  const notesDirty = drawerDraft.notes != null && drawerDraft.notes !== (ctx.repairs_context || '');
+  const delayDirty =
+    (drawerDraft.delayReasons != null && JSON.stringify(drawerDraft.delayReasons) !== JSON.stringify(ctx.delay_reasons || [])) ||
+    (drawerDraft.delayContext != null && drawerDraft.delayContext !== (ctx.delay_context || '')) ||
+    (drawerDraft.delayOther   != null && drawerDraft.delayOther   !== (ctx.delay_other_text || ''));
+
+  document.getElementById('drawerTitle').innerHTML = `
+    <a href="${escapeAttr(d.admin_link)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${escapeHtml(r.address || '—')} ↗</a>
+    <small>${escapeHtml(r.resident_name || '—')} · Move-in ${formatDateNumeric(r.lease_start_on)}</small>
+  `;
+
+  // Status section
+  const statusHtml = `
+    <div class="dr-section">
+      <div class="dr-h">Status</div>
+      <div class="dr-status-row">
+        <span class="status-badge status-${state}">${labelForState(state)}</span>
+        <select class="dr-status-select" onchange="onManualStatusChange(this.value)">
+          <option value="">— Override status —</option>
+          ${MANUAL_STATUS_OPTIONS.map(o =>
+            `<option value="${o.value}" ${d.manual_status === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`
+          ).join('')}
+        </select>
+        ${manualSet ? `<button class="dr-status-reset" onclick="onResetManualStatus()">Reset to auto</button>` : ''}
+      </div>
+      <div style="font-size:11px;color:var(--faint);margin-top:6px">
+        Auto-derived: <strong style="color:var(--muted)">${labelForState(d.derived_ready_state)}</strong>
+        ${manualSet ? ` · Manually set ${ctx.manual_status_set_by ? 'by ' + escapeHtml(ctx.manual_status_set_by) : ''}` : ''}
+      </div>
+    </div>
+  `;
+
+  // Handoff section
+  const handoffHtml = `
+    <div class="dr-section">
+      <div class="dr-h">Handoff</div>
+      <label class="dr-toggle">
+        <input type="checkbox" ${handedOff ? 'checked' : ''} onchange="onToggleHandoff(this.checked)">
+        Handed off to concierge
+      </label>
+      ${handedOff && ctx.handed_off_at ? `<div style="font-size:11px;color:var(--faint);margin-top:4px">on ${formatDateNumeric(ctx.handed_off_at)}${ctx.handed_off_by ? ' by ' + escapeHtml(ctx.handed_off_by) : ''}</div>` : ''}
+    </div>
+  `;
+
+  // Delay section
+  const chipsHtml = DELAY_REASON_OPTIONS.map(o => `
+    <span class="dr-chip ${reasons.includes(o.value) ? 'active' : ''}" onclick="onToggleDelayReason('${o.value}')">${escapeHtml(o.label)}</span>
+  `).join('');
+  const delayHtml = `
+    <div class="dr-section">
+      <div class="dr-h">Delay${isDelayed ? ' · logged' : ''}</div>
+      <div class="dr-chip-grid">${chipsHtml}</div>
+      ${otherSelected ? `
+        <input class="dr-input" type="text" placeholder="Specify 'other' reason…" value="${escapeAttr(otherText)}" oninput="drawerDraft.delayOther = this.value; renderDrawer()" style="margin-bottom:8px">
+      ` : ''}
+      <textarea class="dr-textarea" placeholder="Context (what happened, ETA, who's blocking)…" oninput="drawerDraft.delayContext = this.value">${escapeHtml(ctxText)}</textarea>
+      <div class="dr-actions">
+        <button class="dr-btn dr-btn-primary" ${delayDirty ? '' : 'disabled'} onclick="onSaveDelay()">Save delay</button>
+        ${isDelayed ? `<button class="dr-btn dr-btn-ghost" onclick="onClearDelay()">Clear delay</button>` : ''}
+        ${delayDirty ? `<span class="dr-dirty-stamp">Unsaved</span>` : (ctx.delay_logged_at ? `<span class="dr-saved-stamp">Saved ${formatDateNumeric(ctx.delay_logged_at)}</span>` : '')}
+      </div>
+    </div>
+  `;
+
+  // Notes section
+  const notesHtml = `
+    <div class="dr-section">
+      <div class="dr-h">Notes</div>
+      <textarea class="dr-textarea" placeholder="Notes for this home (visible to all move-ins team)…" oninput="drawerDraft.notes = this.value; updateNotesDirty()">${escapeHtml(notesVal)}</textarea>
+      <div class="dr-actions">
+        <button class="dr-btn dr-btn-primary" id="drNotesSaveBtn" ${notesDirty ? '' : 'disabled'} onclick="onSaveNotes()">Save notes</button>
+        ${notesDirty ? `<span class="dr-dirty-stamp" id="drNotesDirty">Unsaved</span>` : ''}
+      </div>
+    </div>
+  `;
+
+  // Repairs section
+  const repItems = r.repairs.map(it => {
+    const open = it.status !== 'done';
+    return `
+      <div class="dr-repair-item">
+        <span class="dr-rep-id">#${escapeHtml(String(it.maintenance_id))}</span>
+        <span class="dr-rep-title">${escapeHtml(it.repair_summary || '—')}</span>
+        ${it.repair_assessment ? `<span class="dr-rep-tag">${escapeHtml(it.repair_assessment)}</span>` : ''}
+        <span class="dr-rep-tag" style="${open ? 'color:var(--amber);border-color:var(--amber-border);background:var(--amber-dim)' : 'color:var(--green);border-color:var(--green-border);background:var(--green-dim)'}">${escapeHtml(it.status)}</span>
+        <a href="https://foundation.bln.hm/maintenance/${it.maintenance_id}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">↗</a>
+      </div>
+    `;
+  }).join('') || '<div class="faint" style="font-size:12px">No repairs.</div>';
+  const qaLink = r.qa_group_id
+    ? ` · <a href="https://admin.bln.hm/maintenance/${r.qa_group_id}" target="_blank" rel="noopener" style="color:var(--blue);font-size:11px">QA #${r.qa_group_id} ↗</a>`
+    : ` · <span class="no-qa-flag" style="font-size:10px">NO QA</span>`;
+  const repairsHtml = `
+    <div class="dr-section">
+      <div class="dr-h">🔧 Repairs (${r.repairs.length})${qaLink}</div>
+      ${repItems}
+    </div>
+  `;
+
+  // Payment summary
+  const money = v => (v == null || v === '' || isNaN(v)) ? '—' : `$${Number(v).toLocaleString('en-US')}`;
+  const paymentHtml = `
+    <div class="dr-section">
+      <div class="dr-h">💲 Payment</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+        <div><span style="color:var(--muted)">Rent:</span> ${money(r.rent_amount)}</div>
+        <div><span style="color:var(--muted)">Deposit:</span> ${money(r.deposit_amount)}</div>
+        <div><span style="color:var(--muted)">Autopay:</span> ${r.enrolled_in_auto_pay ? 'Yes' : 'No'}</div>
+        <div><span style="color:var(--muted)">Status:</span> ${escapeHtml(d.payment_status)}</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('drawerBody').innerHTML =
+    statusHtml + handoffHtml + delayHtml + notesHtml + repairsHtml + paymentHtml;
+}
+
+// Drawer event handlers — write through then re-load context
+async function onManualStatusChange(value) {
+  if (!drawerHomeId) return;
+  try {
+    if (!value) {
+      await dataSource.clearManualStatus(drawerHomeId);
+    } else {
+      const email = (await sb.auth.getUser()).data?.user?.email || null;
+      await dataSource.setManualStatus(drawerHomeId, value, email);
+    }
+    await reloadAfterDrawerWrite();
+  } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+}
+async function onResetManualStatus() {
+  if (!drawerHomeId) return;
+  try {
+    await dataSource.clearManualStatus(drawerHomeId);
+    await reloadAfterDrawerWrite();
+  } catch (err) { showToast('Reset failed: ' + err.message, 'error'); }
+}
+async function onToggleHandoff(checked) {
+  if (!drawerHomeId) return;
+  try {
+    const email = (await sb.auth.getUser()).data?.user?.email || null;
+    if (checked) await dataSource.markHandedOff(drawerHomeId, email);
+    else await dataSource.unmarkHandedOff(drawerHomeId);
+    await reloadAfterDrawerWrite();
+  } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+}
+function onToggleDelayReason(value) {
+  const r = allRows.find(h => h.home_id === drawerHomeId);
+  const current = drawerDraft.delayReasons != null
+    ? drawerDraft.delayReasons
+    : (Array.isArray(r?.context?.delay_reasons) ? [...r.context.delay_reasons] : []);
+  const idx = current.indexOf(value);
+  if (idx >= 0) current.splice(idx, 1); else current.push(value);
+  drawerDraft.delayReasons = current;
+  renderDrawer();
+}
+async function onSaveDelay() {
+  if (!drawerHomeId) return;
+  const r = allRows.find(h => h.home_id === drawerHomeId);
+  const reasons = drawerDraft.delayReasons != null ? drawerDraft.delayReasons : (r?.context?.delay_reasons || []);
+  const otherText = drawerDraft.delayOther != null ? drawerDraft.delayOther : (r?.context?.delay_other_text || '');
+  const ctxText = drawerDraft.delayContext != null ? drawerDraft.delayContext : (r?.context?.delay_context || '');
+  try {
+    const email = (await sb.auth.getUser()).data?.user?.email || null;
+    if (!reasons.length && !ctxText && !otherText) {
+      await dataSource.unmarkDelayed(drawerHomeId);
+    } else {
+      await dataSource.markDelayed(drawerHomeId, reasons, otherText, ctxText, email);
+    }
+    drawerDraft.delayReasons = null;
+    drawerDraft.delayContext = null;
+    drawerDraft.delayOther = null;
+    await reloadAfterDrawerWrite();
+    showToast('Delay saved', 'success');
+  } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+}
+async function onClearDelay() {
+  if (!drawerHomeId) return;
+  try {
+    await dataSource.unmarkDelayed(drawerHomeId);
+    drawerDraft.delayReasons = null;
+    drawerDraft.delayContext = null;
+    drawerDraft.delayOther = null;
+    await reloadAfterDrawerWrite();
+  } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+}
+async function onSaveNotes() {
+  if (!drawerHomeId || drawerDraft.notes == null) return;
+  try {
+    await dataSource.saveNotes(drawerHomeId, drawerDraft.notes);
+    drawerDraft.notes = null;
+    await reloadAfterDrawerWrite();
+    showToast('Notes saved', 'success');
+  } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+}
+function updateNotesDirty() {
+  // Lightweight: update only the Save button + dirty flag without full re-render
+  const r = allRows.find(h => h.home_id === drawerHomeId);
+  if (!r) return;
+  const saved = r.context?.repairs_context || '';
+  const dirty = drawerDraft.notes != null && drawerDraft.notes !== saved;
+  const btn = document.getElementById('drNotesSaveBtn');
+  if (btn) btn.disabled = !dirty;
+}
+async function reloadAfterDrawerWrite() {
+  // Reload only repair_context (cheap) and re-derive view models
+  try {
+    const [repairContext] = await Promise.all([dataSource.getRepairContext()]);
+    // Rebuild view models with existing raw data isn't feasible without refactor;
+    // simplest reliable path: full reload.
+    await loadData();
+    if (drawerHomeId) renderDrawer();
+  } catch (err) { showToast('Reload failed: ' + err.message, 'error'); }
+}
+window.onManualStatusChange = onManualStatusChange;
+window.onResetManualStatus = onResetManualStatus;
+window.onToggleHandoff = onToggleHandoff;
+window.onToggleDelayReason = onToggleDelayReason;
+window.onSaveDelay = onSaveDelay;
+window.onClearDelay = onClearDelay;
+window.onSaveNotes = onSaveNotes;
+window.updateNotesDirty = updateNotesDirty;
+window.drawerDraft = drawerDraft;
+window.renderDrawer = renderDrawer;
 
 // ── Pagination ───────────────────────────────────────────────────────────────
 function renderPagination(start, end, total, totalPages) {
@@ -744,9 +1096,19 @@ function changePageSize() {
 function labelForState(s) {
   return ({
     ready: 'Ready',
+    on_track: 'On Track',
     in_progress: 'In Progress',
-    urgent: 'Urgent'
+    at_risk: 'At Risk',
+    urgent: 'Urgent',
+    blocked: 'Blocked',
+    handed_off: 'Handed Off'
   })[s] || 'Unknown';
+}
+
+function showToast(msg, kind) {
+  // Lightweight toast (falls back to alert if no toast container).
+  if (typeof window.toast === 'function') return window.toast(msg, kind);
+  console.log(`[${kind || 'info'}] ${msg}`);
 }
 
 function paymentPanelHtml(r) {
@@ -796,7 +1158,7 @@ function paymentPanelHtml(r) {
   `;
 }
 
-function paymentBadgeHtml(payStatus, homeId, open, blocking) {
+function paymentBadgeHtml(payStatus, blocking) {
   const map = {
     all_paid:       { cls: 'mini-ok',   label: 'All paid' },
     deposit_unpaid: { cls: 'mini-warn', label: 'Deposit unpaid' },
@@ -805,7 +1167,7 @@ function paymentBadgeHtml(payStatus, homeId, open, blocking) {
   };
   const cfg = map[payStatus] || { cls: 'mini-none', label: '—' };
   const blockTag = blocking ? ' <span title="Blocking move-in">🚨</span>' : '';
-  return `<span class="mini-badge ${cfg.cls} clickable ${open ? 'active' : ''}" onclick="toggleExpansion(${homeId}, 'payment')" title="Show payment details">💲 ${escapeHtml(cfg.label)}${blockTag}</span>`;
+  return `<span class="mini-badge ${cfg.cls}" title="Payment status">💲 ${escapeHtml(cfg.label)}${blockTag}</span>`;
 }
 
 function hoaBadgeHtml(hasHoa, notified) {

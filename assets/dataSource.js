@@ -100,11 +100,12 @@ class SupabaseDataSource {
     });
   }
 
-  async markDelayed(homeId, reasons, otherText, email) {
+  async markDelayed(homeId, reasons, otherText, contextText, email) {
     return this.upsertRepairContext(homeId, {
       is_delayed: true,
       delay_reasons: Array.isArray(reasons) ? reasons : [],
       delay_other_text: otherText || null,
+      delay_context: contextText || null,
       delay_logged_at: new Date().toISOString(),
       delay_logged_by: email || null
     });
@@ -115,9 +116,32 @@ class SupabaseDataSource {
       is_delayed: false,
       delay_reasons: null,
       delay_other_text: null,
+      delay_context: null,
       delay_logged_at: null,
       delay_logged_by: null
     });
+  }
+
+  // Manual status override (NULL = use auto-derived).
+  async setManualStatus(homeId, status, email) {
+    return this.upsertRepairContext(homeId, {
+      manual_status: status,
+      manual_status_set_at: new Date().toISOString(),
+      manual_status_set_by: email || null
+    });
+  }
+
+  async clearManualStatus(homeId) {
+    return this.upsertRepairContext(homeId, {
+      manual_status: null,
+      manual_status_set_at: null,
+      manual_status_set_by: null
+    });
+  }
+
+  // Notes (repairs_context free-text on home_repair_context).
+  async saveNotes(homeId, notes) {
+    return this.upsertRepairContext(homeId, { repairs_context: notes || null });
   }
 
   // ── Bulk-load (Phase 7 upload) ─────────────────────────────────────────────

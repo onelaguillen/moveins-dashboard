@@ -98,11 +98,16 @@ payments_summary AS (
 --   GroupId = the parent's MaintenanceId. If no parent exists for a home,
 --   the QA inspection wasn't done → NO QA alert.
 qa_parent AS (
+  -- A home counts as having QA done if there's a parent Maintenance row that is
+  -- either the new automated QA ('Quality Assurance' under RequestCategory='QA')
+  -- or the legacy manual QA ('Post Improvements QA').
   SELECT HomeId, MaintenanceId AS QAGroupId, CreatedOn
   FROM `dwh.Maintenance`
-  WHERE RequestCategory = 'QA'
-    AND Summary = 'Quality Assurance'
-    AND HomeId IN (SELECT HomeId FROM cohort)
+  WHERE HomeId IN (SELECT HomeId FROM cohort)
+    AND (
+      (RequestCategory = 'QA' AND Summary = 'Quality Assurance')
+      OR Summary = 'Post Improvements QA'
+    )
   QUALIFY ROW_NUMBER() OVER (PARTITION BY HomeId ORDER BY CreatedOn DESC) = 1
 ),
 qa_summary AS (

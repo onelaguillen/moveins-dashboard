@@ -201,6 +201,13 @@ function deriveViewModels(rawHomes, rawRepairs, rawProServices, repairStatuses, 
     const checks       = readinessChecks(home, homeRepairs);
     const readyState   = derivedReadyState(checks, bizDays);
 
+    // Manual status override (urgent / at_risk / blocked / on_track / handed_off).
+    // NULL/undefined = use auto-derived. Handed-off context flag also forces handed_off.
+    const manualStatus = home.context?.manual_status || null;
+    const handedOff = !!home.context?.handed_off_to_concierge;
+    let effectiveStatus = manualStatus || readyState;
+    if (handedOff && !manualStatus) effectiveStatus = 'handed_off';
+
     home.derived = {
       is_fast_move_in: fast,
       business_days_to_lease_start: bizDays,
@@ -213,7 +220,9 @@ function deriveViewModels(rawHomes, rawRepairs, rawProServices, repairStatuses, 
       lease_url: leaseUrl(home),
       admin_link: adminLink(home),
       readiness_checks: checks,
-      derived_ready_state: readyState
+      derived_ready_state: readyState,
+      manual_status: manualStatus,
+      effective_status: effectiveStatus
     };
 
     return home;

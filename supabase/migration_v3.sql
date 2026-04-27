@@ -168,8 +168,16 @@ ALTER TABLE home_repair_context
   ADD COLUMN IF NOT EXISTS is_delayed               BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS delay_reasons            TEXT[],
   ADD COLUMN IF NOT EXISTS delay_other_text         TEXT,
+  ADD COLUMN IF NOT EXISTS delay_context            TEXT,
   ADD COLUMN IF NOT EXISTS delay_logged_at          TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS delay_logged_by          TEXT;
+  ADD COLUMN IF NOT EXISTS delay_logged_by          TEXT,
+  -- Manual status override. NULL = use auto-derived status.
+  -- Allowed: 'urgent', 'at_risk', 'blocked', 'on_track', 'handed_off'
+  ADD COLUMN IF NOT EXISTS manual_status            TEXT
+                              CHECK (manual_status IS NULL OR manual_status IN
+                                ('urgent','at_risk','blocked','on_track','handed_off')),
+  ADD COLUMN IF NOT EXISTS manual_status_set_at     TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS manual_status_set_by     TEXT;
 
 ALTER TABLE home_repair_context
   DROP COLUMN IF EXISTS lease_url;
