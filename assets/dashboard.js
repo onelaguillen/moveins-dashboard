@@ -21,6 +21,7 @@ const filterState = {
   fastMoveIn: false,
   noQaOnly: false,
   unpricedOnly: false,
+  requiredOnly: false,
   showHandedOff: false, // hide handed-off homes by default
   columnFilters: {}
 };
@@ -345,6 +346,7 @@ function applyFilters() {
     if (filterState.fastMoveIn && !r.derived.is_fast_move_in) return false;
     if (filterState.noQaOnly && r.qa_group_id) return false;
     if (filterState.unpricedOnly && !r.derived.has_unpriced_open_repair) return false;
+    if (filterState.requiredOnly && !r.repairs.some(x => x.repair_assessment === 'Required' && x.status !== 'done')) return false;
 
     // Column filters (Excel-style popovers)
     for (const [key, values] of Object.entries(filterState.columnFilters || {})) {
@@ -395,6 +397,7 @@ function clearFilters() {
   filterState.fastMoveIn = false;
   filterState.noQaOnly = false;
   filterState.unpricedOnly = false;
+  filterState.requiredOnly = false;
   filterState.showHandedOff = false;
   filterState.columnFilters = {};
   document.getElementById('fSearch').value = '';
@@ -423,6 +426,7 @@ function restoreFilters() {
       fastMoveIn: !!s.fastMoveIn,
       noQaOnly:   !!s.noQaOnly,
       unpricedOnly: !!s.unpricedOnly,
+      requiredOnly: !!s.requiredOnly,
       showHandedOff: !!s.showHandedOff,
       columnFilters: s.columnFilters || {}
     });
@@ -447,8 +451,20 @@ function applyUrlParams() {
   if (p.has('fast'))       filterState.fastMoveIn = p.get('fast') === '1';
   if (p.has('noQa'))       filterState.noQaOnly   = p.get('noQa') === '1';
   if (p.has('unpriced'))   filterState.unpricedOnly = p.get('unpriced') === '1';
+  if (p.has('required'))   filterState.requiredOnly = p.get('required') === '1';
   if (p.has('handedOff'))  filterState.showHandedOff = p.get('handedOff') === '1';
   if (p.has('q'))          filterState.q          = p.get('q');
+
+  // Generic column filter via URL: ?colFilter=HOA:not_notified|Payment:deposit_unpaid,rent_unpaid
+  if (p.has('colFilter')) {
+    const groups = p.get('colFilter').split('|').filter(Boolean);
+    filterState.columnFilters = filterState.columnFilters || {};
+    for (const g of groups) {
+      const [key, valuesCsv] = g.split(':');
+      if (!key || !valuesCsv) continue;
+      filterState.columnFilters[key] = valuesCsv.split(',').filter(Boolean);
+    }
+  }
   // Don't persist URL params back to localStorage — they're a one-shot view.
 }
 
@@ -549,6 +565,8 @@ function updateDateChipsUI() {
   if (noQa) noQa.classList.toggle('active', !!filterState.noQaOnly);
   const up = document.getElementById('chip_unpriced');
   if (up) up.classList.toggle('active', !!filterState.unpricedOnly);
+  const rq = document.getElementById('chip_required');
+  if (rq) rq.classList.toggle('active', !!filterState.requiredOnly);
   const ho = document.getElementById('chip_handed_off');
   if (ho) ho.classList.toggle('active', !!filterState.showHandedOff);
 }
@@ -574,6 +592,14 @@ function toggleUnpricedFilter() {
   applyFilters();
 }
 window.toggleUnpricedFilter = toggleUnpricedFilter;
+
+function toggleRequiredFilter() {
+  filterState.requiredOnly = !filterState.requiredOnly;
+  updateDateChipsUI();
+  persistFilters();
+  applyFilters();
+}
+window.toggleRequiredFilter = toggleRequiredFilter;
 
 function toggleHandedOffFilter() {
   filterState.showHandedOff = !filterState.showHandedOff;

@@ -275,28 +275,40 @@ function renderReadiness() {
   document.getElementById('statusNote').innerHTML =
     total ? lines.join(' · ') : '—';
 
-  // Readiness checks % (which gates pass for the cohort)
-  const checks = ['repairs', 'process', 'hoa', 'payments', 'autopay', 'qa', 'lease'];
-  const labelMap = { repairs: 'Repairs done', process: 'No process issues', hoa: 'HOA OK', payments: 'Payments paid', autopay: 'Autopay enrolled', qa: 'QA done', lease: 'Lease executed' };
-  const drillMap = { qa: { noQa: '1' }, payments: {}, autopay: {} };
+  // Readiness checks % (which gates pass for the cohort).
+  // 'process' (placeholder) and 'lease' (always true — lease is signed before homes
+  // reach us) are excluded since they're never actionable.
+  const checks = ['repairs', 'hoa', 'payments', 'autopay', 'qa'];
+  const labelMap = {
+    repairs: 'Repairs done', hoa: 'HOA OK', payments: 'Payments paid',
+    autopay: 'Autopay enrolled', qa: 'QA done'
+  };
+  const drillForMiss = {
+    qa:       { noQa: '1' },
+    hoa:      { colFilter: 'HOA:not_notified' },
+    payments: { colFilter: 'Payment:deposit_unpaid,rent_unpaid,both_unpaid' },
+    autopay:  { colFilter: 'Payment:autopay_off' },
+    repairs:  { required: '1' }
+  };
   const counts = Object.fromEntries(checks.map(c => [c, 0]));
   for (const r of filtered) {
     for (const c of (r.derived.readiness_checks || [])) {
-      if (c.passed) counts[c.id] = (counts[c.id] || 0) + 1;
+      if (c.passed && counts.hasOwnProperty(c.id)) counts[c.id]++;
     }
   }
   const rcGrid = checks.map(c => {
     const passed = counts[c] || 0;
+    const miss = total - passed;
     const pct = total ? Math.round((passed / total) * 100) : 0;
-    const drillTarget = c === 'qa' ? drillUrl({ noQa: '1' }) : null;
+    const url = drillUrl(drillForMiss[c]);
     return `
       <div class="readiness-row">
         <div>${escapeHtml(labelMap[c])}</div>
         <div class="rc-bar-bg"><div class="rc-bar-fill" style="width:${pct}%"></div></div>
         <div class="rc-pct">${pct}%</div>
-        ${drillTarget
-          ? `<a class="rc-link" href="${drillTarget}" target="_blank">${total - passed} miss ↗</a>`
-          : `<div class="rc-link" style="color:var(--faint)">${total - passed} miss</div>`}
+        ${miss > 0
+          ? `<a class="rc-link" href="${url}" target="_blank">${miss} miss ↗</a>`
+          : `<div class="rc-link" style="color:var(--faint)">${miss} miss</div>`}
       </div>
     `;
   }).join('');
