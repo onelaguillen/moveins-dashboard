@@ -725,10 +725,13 @@ function rowHtml(r) {
   const handoffFlag = handedOff ? ` <span class="lease-type-tag" title="Handed off to concierge">🤝</span>` : '';
   const noQaFlag    = !r.qa_group_id ? ` <span class="no-qa-flag" title="No QA inspection record on file">NO QA</span>` : '';
 
-  const misLine = r.move_in_specialist
-    ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">MIS · ${escapeHtml(r.move_in_specialist)}</div>` : '';
-  const hqsLine = r.improvements_specialist
-    ? `<div style="font-size:10px;color:var(--faint)">HQS · ${escapeHtml(r.improvements_specialist)}</div>` : '';
+  const misPart = r.move_in_specialist ? `MIS · ${escapeHtml(r.move_in_specialist)}` : '';
+  const hqsPart = r.improvements_specialist ? `HQS · ${escapeHtml(r.improvements_specialist)}` : '';
+  const specLine = [misPart, hqsPart].filter(Boolean)
+    .join(' <span style="color:var(--border2);margin:0 6px">|</span> ');
+  const misLine = specLine
+    ? `<div style="font-size:10px;color:var(--faint);margin-top:2px">${specLine}</div>` : '';
+  const hqsLine = '';
 
   return `
     <tr onclick="openDrawer(${r.home_id})">
@@ -961,12 +964,13 @@ function renderDrawer() {
     </div>
   `;
 
-  // Lay status + handoff side-by-side, payment + repairs-summary side-by-side
+  // Status + Handoff side-by-side (both short). Everything else full-width.
   document.getElementById('drawerBody').innerHTML = `
     <div class="dr-section"><div class="dr-grid-2">${statusHtml}${handoffHtml}</div></div>
+    ${paymentHtml}
     ${delayHtml}
     ${notesHtml}
-    <div class="dr-section"><div class="dr-grid-2">${paymentHtml}${repairsHtml}</div></div>
+    ${repairsHtml}
   `;
 }
 
