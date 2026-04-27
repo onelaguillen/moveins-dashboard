@@ -100,8 +100,10 @@ body {
       return;
     }
 
-    // All good — redirect to dashboard
-    window.location.replace('/');
+    // All good — redirect to the URL that was originally requested
+    // (captured in sessionStorage by requireAuth before sign-in), or to /.
+    const next = (typeof consumeNextRedirect === 'function') ? consumeNextRedirect() : '/';
+    window.location.replace(next);
 
   } catch (err) {
     console.error('Callback error:', err);

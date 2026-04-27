@@ -63,6 +63,12 @@
       <button class="btn btn-ghost" id="fClear" style="margin-left:auto">Clear</button>
     </div>
 
+    <!-- Focus banner (visible only when ?home=N pins a single home) -->
+    <div id="focusBanner" class="focus-banner" style="display:none">
+      <span>Showing <strong>1 home</strong> from a shared link.</span>
+      <button type="button" class="focus-banner-link" onclick="exitFocusMode()">See all homes</button>
+    </div>
+
     <!-- Homes table -->
     <div class="card">
       <div class="table-header">
@@ -119,7 +125,10 @@
 <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
   <div class="drawer-head">
     <div class="drawer-title" id="drawerTitle">—</div>
-    <button class="drawer-close" onclick="closeDrawer()" aria-label="Close">✕</button>
+    <div class="drawer-head-actions">
+      <button class="drawer-copy" onclick="copyDrawerLink()" aria-label="Copy share link" title="Copy share link">🔗</button>
+      <button class="drawer-close" onclick="closeDrawer()" aria-label="Close">✕</button>
+    </div>
   </div>
   <div class="drawer-body" id="drawerBody"></div>
 </aside>

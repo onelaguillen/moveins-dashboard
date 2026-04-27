@@ -25,7 +25,8 @@ const filterState = {
   unpricedOnly: false,
   requiredOnly: false,
   showHandedOff: false, // hide handed-off homes by default
-  columnFilters: {}
+  columnFilters: {},
+  focusHomeId: null // when set, table is filtered to just this home and drawer opens
 };
 
 // Delay reason chip presets
@@ -183,6 +184,19 @@ async function loadData() {
     syncUiFromState();
     syncUrlFromState();
     applyFilters();
+
+    // If the URL pointed at a specific home, open the drawer for it now.
+    if (filterState.focusHomeId != null) {
+      const exists = allRows.some(r => r.home_id === filterState.focusHomeId);
+      if (exists) {
+        openDrawer(filterState.focusHomeId);
+      } else {
+        showToast(`Home #${filterState.focusHomeId} not found in current data`, 'error');
+        filterState.focusHomeId = null;
+        syncUrlFromState();
+        applyFilters();
+      }
+    }
   } catch (err) {
     console.error(err);
     showToast('Failed to load: ' + err.message, 'error');
@@ -378,6 +392,14 @@ function closeSpecialistMenu() {
 }
 
 function applyFilters() {
+  // Focus mode (?home=N): table is restricted to a single home; ignore other filters.
+  if (filterState.focusHomeId != null) {
+    filtered = allRows.filter(r => r.home_id === filterState.focusHomeId);
+    currentPage = 1;
+    render();
+    return;
+  }
+
   const q = (filterState.q || '').trim().toLowerCase();
 
   filtered = allRows.filter(r => {
@@ -522,6 +544,13 @@ function applyUrlParams() {
   if (p.has('required'))   filterState.requiredOnly = p.get('required') === '1';
   if (p.has('handedOff'))  filterState.showHandedOff = p.get('handedOff') === '1';
   if (p.has('q'))          filterState.q          = p.get('q');
+  if (p.has('home')) {
+    const id = parseInt(p.get('home'), 10);
+    if (!isNaN(id)) {
+      // URL-arrived ?home=N triggers focus mode (filter to one home + banner).
+      filterState.focusHomeId = id;
+    }
+  }
 
   // Generic column filter via URL: ?colFilter=HOA:not_notified|Payment:deposit_unpaid,rent_unpaid
   if (p.has('colFilter')) {
@@ -551,6 +580,9 @@ function buildUrlFromState() {
   if (filterState.requiredOnly)          p.set('required', '1');
   if (filterState.showHandedOff)         p.set('handedOff', '1');
   if ((filterState.q || '').trim())      p.set('q', filterState.q.trim());
+  // ?home=N reflects "which home is in view": focus mode (filter pin) OR open drawer.
+  const homeInUrl = filterState.focusHomeId != null ? filterState.focusHomeId : drawerHomeId;
+  if (homeInUrl != null) p.set('home', String(homeInUrl));
   // Column filters
   const colKeys = Object.keys(filterState.columnFilters || {});
   if (colKeys.length) {
@@ -581,6 +613,9 @@ function syncUiFromState() {
   updateDateClearUI();
   updateSpecialistButtonLabel();
   renderSortIndicators();
+  // Focus banner visibility
+  const fb = document.getElementById('focusBanner');
+  if (fb) fb.style.display = (filterState.focusHomeId != null) ? '' : 'none';
   // Sync flatpickr picker to dateFrom/dateTo if the URL provided them.
   if (window._datePicker) {
     if (filterState.dateFrom && filterState.dateTo)
@@ -987,6 +1022,11 @@ async function openDrawer(homeId) {
   document.getElementById('drawerBackdrop').classList.add('open');
   document.getElementById('detailDrawer').classList.add('open');
   document.getElementById('detailDrawer').setAttribute('aria-hidden', 'false');
+  // Reflect "which drawer is open" in the URL so links are shareable.
+  // We DON'T set focusHomeId here — focus mode is only triggered when the URL
+  // arrived with ?home=N at initial load (handled in loadData), so organic
+  // row clicks keep the full table visible behind the drawer.
+  syncUrlFromState();
   renderDrawer(); // initial paint (no entries yet)
   try {
     drawerLogEntries = await dataSource.getLogEntries(homeId);
@@ -1001,9 +1041,38 @@ function closeDrawer() {
   document.getElementById('drawerBackdrop').classList.remove('open');
   document.getElementById('detailDrawer').classList.remove('open');
   document.getElementById('detailDrawer').setAttribute('aria-hidden', 'true');
+  // If we were in focus mode (arrived via shared link), exit it too.
+  const wasFocused = filterState.focusHomeId != null;
+  filterState.focusHomeId = null;
+  syncUrlFromState();
+  syncUiFromState();
+  if (wasFocused) applyFilters();
 }
+function exitFocusMode() {
+  // "See all homes" banner — clear focus filter, leave drawer state alone.
+  if (filterState.focusHomeId == null) return;
+  filterState.focusHomeId = null;
+  syncUrlFromState();
+  syncUiFromState();
+  applyFilters();
+}
+window.exitFocusMode = exitFocusMode;
 window.openDrawer = openDrawer;
 window.closeDrawer = closeDrawer;
+
+// Copy a shareable link to the currently open home to the clipboard.
+async function copyDrawerLink() {
+  if (drawerHomeId == null) return;
+  const url = `${window.location.origin}/?home=${drawerHomeId}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied — share it with your team', 'success');
+  } catch (err) {
+    // Fallback: prompt the user with the URL pre-selected
+    showToast('Could not copy automatically · ' + url, 'error');
+  }
+}
+window.copyDrawerLink = copyDrawerLink;
 window.toggleSpecialistMenu = toggleSpecialistMenu;
 
 function renderDrawer() {

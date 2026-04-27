@@ -17,11 +17,43 @@ function isAdmin(email) { return ADMIN_EMAILS.has((email || '').toLowerCase()); 
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Post-login redirect helpers ──────────────────────────────────────────────
+// We persist the intended URL in sessionStorage during the OAuth roundtrip
+// (Google redirects through external pages, so a query param isn't reliable).
+const NEXT_KEY = 'belong.auth.next';
+
+// Validate that a URL is safe to redirect to: must be a same-origin path
+// starting with a single "/", never "//" or "/\" (open-redirect prevention).
+function safeNextPath(raw) {
+  if (typeof raw !== 'string' || !raw) return null;
+  if (!raw.startsWith('/'))   return null;
+  if (raw.startsWith('//'))   return null;
+  if (raw.startsWith('/\\'))  return null;
+  return raw;
+}
+
+function captureCurrentAsNext() {
+  const here = window.location.pathname + window.location.search;
+  if (here && here !== '/' && !here.startsWith('/login') && !here.startsWith('/auth/')) {
+    try { sessionStorage.setItem(NEXT_KEY, here); } catch {}
+  }
+}
+
+function consumeNextRedirect() {
+  let next = null;
+  try {
+    next = sessionStorage.getItem(NEXT_KEY);
+    sessionStorage.removeItem(NEXT_KEY);
+  } catch {}
+  return safeNextPath(next) || '/';
+}
+
 // ── Auth guard ───────────────────────────────────────────────────────────────
 async function requireAuth(adminOnly = false) {
   const { data: { session } } = await sb.auth.getSession();
 
   if (!session) {
+    captureCurrentAsNext();
     window.location.replace('/login');
     return null;
   }
