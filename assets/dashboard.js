@@ -15,12 +15,12 @@ const filterState = {
   dateFrom: '',
   dateTo: '',
   dateChip: '',       // 'overdue' | 'this_week' | '30_days' | ''
-  region: '',
   // Combined specialists: arrays of names. OR within section, AND across sections.
   misNames: [],
   hqsNames: [],
   fastMoveIn: false,
   noQaOnly: false,
+  unpricedOnly: false,
   showHandedOff: false, // hide handed-off homes by default
   columnFilters: {}
 };
@@ -172,9 +172,6 @@ function wireFilters() {
     updateDateChipsUI();
     persistFilters(); applyFilters();
   });
-  document.getElementById('fRegion').addEventListener('change', e => {
-    filterState.region = e.target.value; persistFilters(); applyFilters();
-  });
   document.getElementById('fClear').addEventListener('click', clearFilters);
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeDrawer(); closeSpecialistMenu(); }
@@ -221,10 +218,6 @@ function updateDateClearUI() {
 }
 
 function populateSelectOptions() {
-  const regionSel = document.getElementById('fRegion');
-  const regions = [...new Set(allRows.map(r => r.region).filter(Boolean))].sort();
-  regionSel.innerHTML = `<option value="">All regions</option>` +
-    regions.map(r => `<option${r === filterState.region ? ' selected' : ''}>${escapeHtml(r)}</option>`).join('');
   updateSpecialistButtonLabel();
 }
 
@@ -343,8 +336,6 @@ function applyFilters() {
       }
     }
 
-    if (filterState.region && r.region !== filterState.region) return false;
-
     // Combined MIS+HQS filter: OR within each section, AND across sections.
     const mis = filterState.misNames || [];
     const hqs = filterState.hqsNames || [];
@@ -353,6 +344,7 @@ function applyFilters() {
 
     if (filterState.fastMoveIn && !r.derived.is_fast_move_in) return false;
     if (filterState.noQaOnly && r.qa_group_id) return false;
+    if (filterState.unpricedOnly && !r.derived.has_unpriced_open_repair) return false;
 
     // Column filters (Excel-style popovers)
     for (const [key, values] of Object.entries(filterState.columnFilters || {})) {
@@ -399,15 +391,14 @@ function applyFilters() {
 function clearFilters() {
   filterState.q = ''; filterState.statusCard = '';
   filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
-  filterState.region = '';
   filterState.misNames = []; filterState.hqsNames = [];
   filterState.fastMoveIn = false;
   filterState.noQaOnly = false;
+  filterState.unpricedOnly = false;
   filterState.showHandedOff = false;
   filterState.columnFilters = {};
   document.getElementById('fSearch').value = '';
   if (window._datePicker) window._datePicker.clear();
-  document.getElementById('fRegion').value = '';
   updateSpecialistButtonLabel();
   updateMetricCardsUI();
   updateDateClearUI();
@@ -427,11 +418,11 @@ function restoreFilters() {
     Object.assign(filterState, {
       q: s.q || '', statusCard: s.statusCard || '',
       dateFrom: s.dateFrom || '', dateTo: s.dateTo || '', dateChip: s.dateChip || '',
-      region: s.region || '',
       misNames: Array.isArray(s.misNames) ? s.misNames : [],
       hqsNames: Array.isArray(s.hqsNames) ? s.hqsNames : [],
       fastMoveIn: !!s.fastMoveIn,
       noQaOnly:   !!s.noQaOnly,
+      unpricedOnly: !!s.unpricedOnly,
       showHandedOff: !!s.showHandedOff,
       columnFilters: s.columnFilters || {}
     });
@@ -537,6 +528,8 @@ function updateDateChipsUI() {
   if (fast) fast.classList.toggle('active', !!filterState.fastMoveIn);
   const noQa = document.getElementById('chip_no_qa');
   if (noQa) noQa.classList.toggle('active', !!filterState.noQaOnly);
+  const up = document.getElementById('chip_unpriced');
+  if (up) up.classList.toggle('active', !!filterState.unpricedOnly);
   const ho = document.getElementById('chip_handed_off');
   if (ho) ho.classList.toggle('active', !!filterState.showHandedOff);
 }
@@ -554,6 +547,14 @@ function toggleNoQaFilter() {
   persistFilters();
   applyFilters();
 }
+
+function toggleUnpricedFilter() {
+  filterState.unpricedOnly = !filterState.unpricedOnly;
+  updateDateChipsUI();
+  persistFilters();
+  applyFilters();
+}
+window.toggleUnpricedFilter = toggleUnpricedFilter;
 
 function toggleHandedOffFilter() {
   filterState.showHandedOff = !filterState.showHandedOff;
@@ -724,6 +725,9 @@ function rowHtml(r) {
     ? ` <span class="fast-moveIn-flag critical" data-tip="Critical — ${d.business_days_to_lease_start} biz day${d.business_days_to_lease_start === 1 ? '' : 's'} left">🚨</span>` : '';
   const handoffFlag = handedOff ? ` <span class="lease-type-tag" title="Handed off to concierge">🤝</span>` : '';
   const noQaFlag    = !r.qa_group_id ? ` <span class="no-qa-flag" title="No QA inspection record on file">NO QA</span>` : '';
+  const unpricedCount = d.unpriced_open_repair_count || 0;
+  const unpricedFlag = unpricedCount > 0
+    ? ` <span class="unpriced-flag" title="${unpricedCount} open repair${unpricedCount === 1 ? '' : 's'} without a price">UNPRICED${unpricedCount > 1 ? ` ${unpricedCount}` : ''}</span>` : '';
 
   const misPart = r.move_in_specialist ? `MIS · ${escapeHtml(r.move_in_specialist)}` : '';
   const hqsPart = r.improvements_specialist ? `HQS · ${escapeHtml(r.improvements_specialist)}` : '';
@@ -736,7 +740,7 @@ function rowHtml(r) {
   return `
     <tr onclick="openDrawer(${r.home_id})">
       <td>
-        <span class="addr-link">${escapeHtml(r.address || '—')}</span>${fastFlag}${critFlag}${handoffFlag}${noQaFlag}
+        <span class="addr-link">${escapeHtml(r.address || '—')}</span>${fastFlag}${critFlag}${handoffFlag}${noQaFlag}${unpricedFlag}
         ${r.is_revised ? `<div style="margin-top:3px"><span class="lease-type-tag">Revised</span></div>` : ''}
         ${misLine}${hqsLine}
       </td>
@@ -929,11 +933,15 @@ function renderDrawer() {
     const costHtml = it.repair_estimated_cost != null
       ? `<span class="dr-rep-tag" style="font-family:ui-monospace,monospace">$${Number(it.repair_estimated_cost).toLocaleString()}</span>`
       : `<span class="dr-rep-tag" style="color:var(--red);border-color:var(--red-border);background:var(--red-dim);font-weight:600">Not priced</span>`;
+    const categoryTag = it.repair_category
+      ? `<span class="dr-rep-tag" style="background:var(--navy-dim);color:var(--navy);border-color:var(--navy-border);font-weight:600">${escapeHtml(it.repair_category)}</span>`
+      : '';
     return `
       <a class="dr-repair-item dr-repair-link" href="https://foundation.bln.hm/maintenance/${it.maintenance_id}" target="_blank" rel="noopener">
         <span class="dr-rep-id">#${escapeHtml(String(it.maintenance_id))}</span>
-        <span class="dr-rep-title">${escapeHtml(it.repair_summary || '—')}</span>
+        ${categoryTag}
         ${it.repair_assessment ? `<span class="dr-rep-tag">${escapeHtml(it.repair_assessment)}</span>` : ''}
+        <span class="dr-rep-title">${escapeHtml(it.repair_summary || '—')}</span>
         ${costHtml}
         <span class="dr-rep-tag" style="${open ? 'color:var(--amber);border-color:var(--amber-border);background:var(--amber-dim)' : 'color:var(--green);border-color:var(--green-border);background:var(--green-dim)'}">${escapeHtml(it.status)}</span>
         <span style="color:var(--blue);margin-left:auto">↗</span>

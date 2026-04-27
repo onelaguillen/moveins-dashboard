@@ -69,6 +69,14 @@ function csatStatus(home) {
   return 'no_response';
 }
 
+function hasUnpricedOpenRepair(repairs) {
+  return repairs.some(r => r.status !== 'done' && (r.repair_estimated_cost == null));
+}
+
+function unpricedOpenRepairCount(repairs) {
+  return repairs.filter(r => r.status !== 'done' && (r.repair_estimated_cost == null)).length;
+}
+
 function improvementsStatus(home, repairs) {
   let hasReqOpen = false;
   let hasRecOpen = false;
@@ -222,7 +230,9 @@ function deriveViewModels(rawHomes, rawRepairs, rawProServices, repairStatuses, 
       readiness_checks: checks,
       derived_ready_state: readyState,
       manual_status: manualStatus,
-      effective_status: effectiveStatus
+      effective_status: effectiveStatus,
+      has_unpriced_open_repair: hasUnpricedOpenRepair(homeRepairs),
+      unpriced_open_repair_count: unpricedOpenRepairCount(homeRepairs)
     };
 
     return home;

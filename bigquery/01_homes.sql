@@ -66,7 +66,8 @@ qa_parent AS (
   WHERE HomeId IN (SELECT HomeId FROM cohort)
     AND (
       (RequestCategory = 'QA' AND Summary = 'Quality Assurance')
-      OR Summary = 'Post Improvements QA'
+      -- Tolerate whitespace/casing variants like "Post Improvements Q A"
+      OR REGEXP_CONTAINS(UPPER(Summary), r'^\s*POST\s+IMPROVEMENTS\s+Q\s*A\s*$')
     )
   QUALIFY ROW_NUMBER() OVER (PARTITION BY HomeId ORDER BY CreatedOn DESC) = 1
 ),
