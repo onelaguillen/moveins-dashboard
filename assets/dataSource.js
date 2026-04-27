@@ -144,6 +144,48 @@ class SupabaseDataSource {
     return this.upsertRepairContext(homeId, { repairs_context: notes || null });
   }
 
+  // ── Snapshots (analytics) ──────────────────────────────────────────────────
+  async getSnapshots(fromDate, toDate) {
+    let q = this.sb.from('homes_snapshots').select('*');
+    if (fromDate) q = q.gte('snapshot_date', fromDate);
+    if (toDate)   q = q.lte('snapshot_date', toDate);
+    const { data, error } = await q.order('snapshot_date', { ascending: true });
+    if (error) throw new Error('snapshots load failed: ' + error.message);
+    return data || [];
+  }
+
+  // Returns [{ snapshot_date, row_count }] grouped, newest first.
+  async getSnapshotDates() {
+    const { data, error } = await this.sb
+      .from('homes_snapshots')
+      .select('snapshot_date')
+      .order('snapshot_date', { ascending: false });
+    if (error) throw new Error('snapshot dates load failed: ' + error.message);
+    const counts = {};
+    for (const row of data || []) {
+      counts[row.snapshot_date] = (counts[row.snapshot_date] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([snapshot_date, row_count]) => ({ snapshot_date, row_count }))
+      .sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date));
+  }
+
+  async deleteSnapshot(snapshotDate) {
+    const { error } = await this.sb
+      .from('homes_snapshots')
+      .delete()
+      .eq('snapshot_date', snapshotDate);
+    if (error) throw new Error('snapshot delete failed: ' + error.message);
+  }
+
+  // Manually run today's snapshot (useful for testing or backfilling today
+  // before the nightly cron runs). Calls the SQL function take_homes_snapshot().
+  async takeSnapshotNow() {
+    const { data, error } = await this.sb.rpc('take_homes_snapshot');
+    if (error) throw new Error('take_homes_snapshot failed: ' + error.message);
+    return data;
+  }
+
   // ── Bulk-load (Phase 7 upload) ─────────────────────────────────────────────
   async replaceHomes(rows) { return this._replaceTable('homes', rows); }
   async replaceRepairs(rows) { return this._replaceTable('repairs', rows); }
