@@ -1233,6 +1233,27 @@ a.dr-repair-link:hover {
   box-shadow: var(--shadow-md); padding: 8px; min-width: 240px; max-height: 360px;
   display: flex; flex-direction: column;
 }
+.multi-pop-tall {
+  width: 280px; height: 460px; max-height: 80vh;
+}
+.mp-search-wrap { padding: 0 2px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.mp-search {
+  width: 100%; font-family: inherit; font-size: 12px;
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--rsm);
+  background: var(--surface); color: var(--text);
+}
+.mp-search:focus { outline: none; border-color: var(--navy); }
+.mp-scroll {
+  flex: 1 1 auto; overflow-y: scroll;     /* always-visible scrollbar so it's discoverable */
+  padding-right: 4px; margin-right: -4px;
+  scrollbar-gutter: stable;
+}
+/* Force scrollbar visible cross-platform (default Mac is overlay/auto-hide) */
+.mp-scroll::-webkit-scrollbar { width: 8px; }
+.mp-scroll::-webkit-scrollbar-track { background: var(--surface2); border-radius: 4px; }
+.mp-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+.mp-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.mp-section-list { display: flex; flex-direction: column; }
 .multi-pop .mp-section-title {
   font-size: 10px; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: .06em; padding: 6px 4px 4px;

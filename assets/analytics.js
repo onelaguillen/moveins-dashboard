@@ -15,7 +15,8 @@ const filterState = {
   dateTo: '',
   dateChip: 'this_month',
   misNames: [],
-  hqsNames: []
+  hqsNames: [],
+  conciergeNames: []
 };
 
 const charts = {};       // Chart.js instances, so we can destroy + redraw
@@ -89,16 +90,20 @@ async function loadSnapshots() {
 function applyAndRender() {
   const fromD = filterState.dateFrom ? startOfDay(new Date(filterState.dateFrom)) : null;
   const toD   = filterState.dateTo   ? startOfDay(new Date(filterState.dateTo))   : null;
-  const mis = filterState.misNames || [];
-  const hqs = filterState.hqsNames || [];
+  const matchPerson = (selected, value) => {
+    if (!selected || !selected.length) return true;
+    if (!value) return selected.includes('__unassigned__');
+    return selected.includes(value);
+  };
 
   filtered = allRows.filter(r => {
     if (!r.lease_start_on) return false;
     const d = startOfDay(new Date(r.lease_start_on));
     if (fromD && d < fromD) return false;
     if (toD && d > toD) return false;
-    if (mis.length && !mis.includes(r.move_in_specialist)) return false;
-    if (hqs.length && !hqs.includes(r.improvements_specialist)) return false;
+    if (!matchPerson(filterState.misNames,       r.move_in_specialist))     return false;
+    if (!matchPerson(filterState.hqsNames,       r.improvements_specialist)) return false;
+    if (!matchPerson(filterState.conciergeNames, r.concierge))               return false;
     return true;
   });
 
@@ -120,8 +125,9 @@ function drillUrl(extraParams = {}) {
   const p = new URLSearchParams();
   if (filterState.dateFrom) p.set('dateFrom', filterState.dateFrom);
   if (filterState.dateTo)   p.set('dateTo',   filterState.dateTo);
-  if (filterState.misNames?.length) p.set('mis', filterState.misNames.join(','));
-  if (filterState.hqsNames?.length) p.set('hqs', filterState.hqsNames.join(','));
+  if (filterState.misNames?.length)       p.set('mis',       filterState.misNames.join(','));
+  if (filterState.hqsNames?.length)       p.set('hqs',       filterState.hqsNames.join(','));
+  if (filterState.conciergeNames?.length) p.set('concierge', filterState.conciergeNames.join(','));
   for (const [k, v] of Object.entries(extraParams)) {
     if (v == null || v === '' || v === false) continue;
     p.set(k, String(v));
@@ -837,33 +843,42 @@ function toggleAnalyticsSpecialistMenu(event) {
   const existing = document.getElementById('aSpecialistPop');
   if (existing) { existing.remove(); return; }
   const anchor = document.getElementById('aSpecialistBtn');
-  const misNames = [...new Set(allRows.map(r => r.move_in_specialist).filter(Boolean))].sort();
-  const hqsNames = [...new Set(allRows.map(r => r.improvements_specialist).filter(Boolean))].sort();
-  const misSel = new Set(filterState.misNames || []);
-  const hqsSel = new Set(filterState.hqsNames || []);
+
+  const sortedNames = key =>
+    [...new Set(allRows.map(r => r[key]).filter(Boolean))]
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const sections = [
+    { id: 'mis',       label: 'MIS — Move-In Specialist',     names: sortedNames('move_in_specialist'),     selected: new Set(filterState.misNames       || []) },
+    { id: 'hqs',       label: 'HQS — Home Quality Specialist', names: sortedNames('improvements_specialist'), selected: new Set(filterState.hqsNames       || []) },
+    { id: 'concierge', label: 'Concierge',                    names: sortedNames('concierge'),               selected: new Set(filterState.conciergeNames || []) }
+  ];
+  const renderSection = s => `
+    <div class="mp-section-title">${escapeHtml(s.label)}</div>
+    <div class="mp-section-list" data-section="${s.id}">
+      <label class="mp-opt mp-opt-unassigned">
+        <input type="checkbox" data-section="${s.id}" value="__unassigned__" ${s.selected.has('__unassigned__') ? 'checked' : ''}>
+        <span style="font-style:italic;color:var(--muted)">— Unassigned</span>
+      </label>
+      ${s.names.length
+        ? s.names.map(n => `
+          <label class="mp-opt" data-name="${escapeAttr(n.toLowerCase())}">
+            <input type="checkbox" data-section="${s.id}" value="${escapeAttr(n)}" ${s.selected.has(n) ? 'checked' : ''}>
+            <span>${escapeHtml(n)}</span>
+          </label>
+        `).join('')
+        : '<div class="faint" style="padding:6px;font-size:11px">None</div>'}
+    </div>
+  `;
 
   const pop = document.createElement('div');
   pop.id = 'aSpecialistPop';
-  pop.className = 'multi-pop';
+  pop.className = 'multi-pop multi-pop-tall';
   pop.innerHTML = `
-    <div class="mp-section-title">MIS — Move-In Specialist</div>
-    <div class="mp-list">
-      ${misNames.length ? misNames.map(n => `
-        <label class="mp-opt">
-          <input type="checkbox" data-section="mis" value="${escapeAttr(n)}" ${misSel.has(n) ? 'checked' : ''}>
-          <span>${escapeHtml(n)}</span>
-        </label>
-      `).join('') : '<div class="faint" style="padding:6px">No MIS</div>'}
+    <div class="mp-search-wrap">
+      <input type="search" class="mp-search" id="aMpSearch" placeholder="Search by name…" autocomplete="off">
     </div>
-    <div class="mp-divider"></div>
-    <div class="mp-section-title">HQS — Home Quality Specialist</div>
-    <div class="mp-list">
-      ${hqsNames.length ? hqsNames.map(n => `
-        <label class="mp-opt">
-          <input type="checkbox" data-section="hqs" value="${escapeAttr(n)}" ${hqsSel.has(n) ? 'checked' : ''}>
-          <span>${escapeHtml(n)}</span>
-        </label>
-      `).join('') : '<div class="faint" style="padding:6px">No HQS</div>'}
+    <div class="mp-scroll">
+      ${sections.map(renderSection).join('<div class="mp-divider"></div>')}
     </div>
     <div class="mp-actions">
       <button type="button" class="mp-clear">Clear</button>
@@ -874,13 +889,25 @@ function toggleAnalyticsSpecialistMenu(event) {
   const rect = anchor.getBoundingClientRect();
   pop.style.top  = (window.scrollY + rect.bottom + 4) + 'px';
   pop.style.left = (window.scrollX + rect.left) + 'px';
+
+  const searchInput = pop.querySelector('#aMpSearch');
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    pop.querySelectorAll('.mp-opt[data-name]').forEach(opt => {
+      const name = opt.getAttribute('data-name') || '';
+      opt.style.display = (!q || name.includes(q)) ? '' : 'none';
+    });
+  });
+  searchInput.focus();
+
   pop.querySelector('.mp-apply').onclick = () => {
-    filterState.misNames = [...pop.querySelectorAll('input[data-section="mis"]:checked')].map(i => i.value);
-    filterState.hqsNames = [...pop.querySelectorAll('input[data-section="hqs"]:checked')].map(i => i.value);
+    filterState.misNames        = [...pop.querySelectorAll('input[data-section="mis"]:checked')].map(i => i.value);
+    filterState.hqsNames        = [...pop.querySelectorAll('input[data-section="hqs"]:checked')].map(i => i.value);
+    filterState.conciergeNames  = [...pop.querySelectorAll('input[data-section="concierge"]:checked')].map(i => i.value);
     persistFilters(); applyAndRender(); updateSpecialistButtonLabel(); pop.remove();
   };
   pop.querySelector('.mp-clear').onclick = () => {
-    filterState.misNames = []; filterState.hqsNames = [];
+    filterState.misNames = []; filterState.hqsNames = []; filterState.conciergeNames = [];
     persistFilters(); applyAndRender(); updateSpecialistButtonLabel(); pop.remove();
   };
   setTimeout(() => document.addEventListener('click', _closeSpec, { once: true }), 0);
@@ -898,14 +925,28 @@ function updateSpecialistButtonLabel() {
   const lbl = document.getElementById('aSpecialistLabel');
   const btn = document.getElementById('aSpecialistBtn');
   if (!lbl || !btn) return;
-  const m = filterState.misNames || [], h = filterState.hqsNames || [];
-  const total = m.length + h.length;
-  if (total === 0) { lbl.textContent = 'All specialists'; btn.classList.remove('has-active'); return; }
+  const m = filterState.misNames || [];
+  const h = filterState.hqsNames || [];
+  const c = filterState.conciergeNames || [];
+  const total = m.length + h.length + c.length;
+  if (total === 0) { lbl.textContent = 'Belongers…'; btn.classList.remove('has-active'); btn.title = ''; return; }
   btn.classList.add('has-active');
-  const parts = [];
-  if (m.length) parts.push(`MIS: ${m.length === 1 ? m[0] : m.length}`);
-  if (h.length) parts.push(`HQS: ${h.length === 1 ? h[0] : h.length}`);
-  lbl.textContent = parts.join(' · ');
+  const sectionLabel = (arr, prefix) => {
+    if (!arr.length) return null;
+    if (arr.length === 1) {
+      const v = arr[0];
+      return `${prefix}: ${v === '__unassigned__' ? 'Unassigned' : v}`;
+    }
+    return `${prefix}: ${arr.length}`;
+  };
+  const parts = [
+    sectionLabel(m, 'MIS'),
+    sectionLabel(h, 'HQS'),
+    sectionLabel(c, 'Concierge')
+  ].filter(Boolean);
+  const full = parts.join(' · ');
+  lbl.textContent = full.length > 36 ? full.slice(0, 33) + '…' : full;
+  btn.title = full;
 }
 
 // ── Persistence ──────────────────────────────────────────────────────────────
@@ -922,7 +963,8 @@ function restoreFilters() {
       dateTo: s.dateTo || '',
       dateChip: s.dateChip || 'this_month',
       misNames: Array.isArray(s.misNames) ? s.misNames : [],
-      hqsNames: Array.isArray(s.hqsNames) ? s.hqsNames : []
+      hqsNames: Array.isArray(s.hqsNames) ? s.hqsNames : [],
+      conciergeNames: Array.isArray(s.conciergeNames) ? s.conciergeNames : []
     });
     updateSpecialistButtonLabel();
   } catch {}

@@ -15,9 +15,11 @@ const filterState = {
   dateFrom: '',
   dateTo: '',
   dateChip: '',       // 'overdue' | 'this_week' | '30_days' | ''
-  // Combined specialists: arrays of names. OR within section, AND across sections.
+  // Combined people filter: arrays of names. OR within section, AND across sections.
+  // The pseudo-value '__unassigned__' matches homes where the field is empty.
   misNames: [],
   hqsNames: [],
+  conciergeNames: [],
   fastMoveIn: false,
   noQaOnly: false,
   unpricedOnly: false,
@@ -254,52 +256,70 @@ function updateSpecialistButtonLabel() {
   if (!btn || !lbl) return;
   const m = filterState.misNames || [];
   const h = filterState.hqsNames || [];
-  const total = m.length + h.length;
-  if (total === 0) { lbl.textContent = 'All specialists'; btn.classList.remove('has-active'); return; }
+  const c = filterState.conciergeNames || [];
+  const total = m.length + h.length + c.length;
+  if (total === 0) { lbl.textContent = 'Belongers…'; btn.classList.remove('has-active'); btn.title = ''; return; }
   btn.classList.add('has-active');
-  const parts = [];
-  if (m.length) parts.push(`MIS: ${m.length === 1 ? m[0] : m.length}`);
-  if (h.length) parts.push(`HQS: ${h.length === 1 ? h[0] : h.length}`);
-  lbl.textContent = parts.join(' · ');
+  const sectionLabel = (arr, prefix) => {
+    if (!arr.length) return null;
+    if (arr.length === 1) {
+      const v = arr[0];
+      return `${prefix}: ${v === '__unassigned__' ? 'Unassigned' : v}`;
+    }
+    return `${prefix}: ${arr.length}`;
+  };
+  const parts = [
+    sectionLabel(m, 'MIS'),
+    sectionLabel(h, 'HQS'),
+    sectionLabel(c, 'Concierge')
+  ].filter(Boolean);
+  const full = parts.join(' · ');
+  lbl.textContent = full.length > 36 ? full.slice(0, 33) + '…' : full;
+  btn.title = full; // tooltip with the un-truncated breakdown
 }
 
-// Combined MIS+HQS multi-select popover
+// Combined people multi-select popover (MIS / HQS / Concierge) with search
 function toggleSpecialistMenu(event) {
   event.stopPropagation();
   const existing = document.getElementById('specialistPop');
   if (existing) { existing.remove(); return; }
   const anchor = document.getElementById('fSpecialistBtn');
-  const misNames = [...new Set(allRows.map(r => r.move_in_specialist).filter(Boolean))].sort();
-  const hqsNames = [...new Set(allRows.map(r => r.improvements_specialist).filter(Boolean))].sort();
-  const misSel = new Set(filterState.misNames || []);
-  const hqsSel = new Set(filterState.hqsNames || []);
+
+  const sortedNames = key =>
+    [...new Set(allRows.map(r => r[key]).filter(Boolean))]
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const sections = [
+    { id: 'mis',       label: 'MIS — Move-In Specialist',     names: sortedNames('move_in_specialist'),     selected: new Set(filterState.misNames       || []) },
+    { id: 'hqs',       label: 'HQS — Home Quality Specialist', names: sortedNames('improvements_specialist'), selected: new Set(filterState.hqsNames       || []) },
+    { id: 'concierge', label: 'Concierge',                    names: sortedNames('concierge'),               selected: new Set(filterState.conciergeNames || []) }
+  ];
+  const renderSection = s => `
+    <div class="mp-section-title">${escapeHtml(s.label)}</div>
+    <div class="mp-section-list" data-section="${s.id}">
+      <label class="mp-opt mp-opt-unassigned">
+        <input type="checkbox" data-section="${s.id}" value="__unassigned__" ${s.selected.has('__unassigned__') ? 'checked' : ''}>
+        <span style="font-style:italic;color:var(--muted)">— Unassigned</span>
+      </label>
+      ${s.names.length
+        ? s.names.map(n => `
+          <label class="mp-opt" data-name="${escapeAttr(n.toLowerCase())}">
+            <input type="checkbox" data-section="${s.id}" value="${escapeAttr(n)}" ${s.selected.has(n) ? 'checked' : ''}>
+            <span>${escapeHtml(n)}</span>
+          </label>
+        `).join('')
+        : '<div class="faint" style="padding:6px;font-size:11px">None</div>'}
+    </div>
+  `;
 
   const pop = document.createElement('div');
   pop.id = 'specialistPop';
-  pop.className = 'multi-pop';
+  pop.className = 'multi-pop multi-pop-tall';
   pop.innerHTML = `
-    <div class="mp-section-title">MIS — Move-In Specialist</div>
-    <div class="mp-list" data-section="mis">
-      ${misNames.length
-        ? misNames.map(n => `
-          <label class="mp-opt">
-            <input type="checkbox" data-section="mis" value="${escapeAttr(n)}" ${misSel.has(n) ? 'checked' : ''}>
-            <span>${escapeHtml(n)}</span>
-          </label>
-        `).join('')
-        : '<div class="faint" style="padding:6px">No MIS</div>'}
+    <div class="mp-search-wrap">
+      <input type="search" class="mp-search" id="mpSearch" placeholder="Search by name…" autocomplete="off">
     </div>
-    <div class="mp-divider"></div>
-    <div class="mp-section-title">HQS — Home Quality Specialist</div>
-    <div class="mp-list" data-section="hqs">
-      ${hqsNames.length
-        ? hqsNames.map(n => `
-          <label class="mp-opt">
-            <input type="checkbox" data-section="hqs" value="${escapeAttr(n)}" ${hqsSel.has(n) ? 'checked' : ''}>
-            <span>${escapeHtml(n)}</span>
-          </label>
-        `).join('')
-        : '<div class="faint" style="padding:6px">No HQS</div>'}
+    <div class="mp-scroll">
+      ${sections.map(renderSection).join('<div class="mp-divider"></div>')}
     </div>
     <div class="mp-actions">
       <button type="button" class="mp-clear">Clear</button>
@@ -311,15 +331,27 @@ function toggleSpecialistMenu(event) {
   pop.style.top  = (window.scrollY + rect.bottom + 4) + 'px';
   pop.style.left = (window.scrollX + rect.left) + 'px';
 
+  // Live search filter across all sections
+  const searchInput = pop.querySelector('#mpSearch');
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    pop.querySelectorAll('.mp-opt[data-name]').forEach(opt => {
+      const name = opt.getAttribute('data-name') || '';
+      opt.style.display = (!q || name.includes(q)) ? '' : 'none';
+    });
+  });
+  searchInput.focus();
+
   pop.querySelector('.mp-apply').onclick = () => {
-    filterState.misNames = [...pop.querySelectorAll('input[data-section="mis"]:checked')].map(i => i.value);
-    filterState.hqsNames = [...pop.querySelectorAll('input[data-section="hqs"]:checked')].map(i => i.value);
+    filterState.misNames        = [...pop.querySelectorAll('input[data-section="mis"]:checked')].map(i => i.value);
+    filterState.hqsNames        = [...pop.querySelectorAll('input[data-section="hqs"]:checked')].map(i => i.value);
+    filterState.conciergeNames  = [...pop.querySelectorAll('input[data-section="concierge"]:checked')].map(i => i.value);
     persistFilters(); applyFilters();
     updateSpecialistButtonLabel();
     pop.remove();
   };
   pop.querySelector('.mp-clear').onclick = () => {
-    filterState.misNames = []; filterState.hqsNames = [];
+    filterState.misNames = []; filterState.hqsNames = []; filterState.conciergeNames = [];
     persistFilters(); applyFilters();
     updateSpecialistButtonLabel();
     pop.remove();
@@ -363,11 +395,16 @@ function applyFilters() {
       }
     }
 
-    // Combined MIS+HQS filter: OR within each section, AND across sections.
-    const mis = filterState.misNames || [];
-    const hqs = filterState.hqsNames || [];
-    if (mis.length && !mis.includes(r.move_in_specialist)) return false;
-    if (hqs.length && !hqs.includes(r.improvements_specialist)) return false;
+    // Combined people filter: OR within each section, AND across sections.
+    // '__unassigned__' matches when the field is empty/null.
+    const matchPerson = (selected, value) => {
+      if (!selected || !selected.length) return true;
+      if (!value) return selected.includes('__unassigned__');
+      return selected.includes(value);
+    };
+    if (!matchPerson(filterState.misNames,        r.move_in_specialist))     return false;
+    if (!matchPerson(filterState.hqsNames,        r.improvements_specialist)) return false;
+    if (!matchPerson(filterState.conciergeNames,  r.concierge))               return false;
 
     if (filterState.fastMoveIn && !r.derived.is_fast_move_in) return false;
     if (filterState.noQaOnly && r.qa_group_id) return false;
@@ -419,7 +456,7 @@ function applyFilters() {
 function clearFilters() {
   filterState.q = ''; filterState.statusCard = '';
   filterState.dateFrom = ''; filterState.dateTo = ''; filterState.dateChip = '';
-  filterState.misNames = []; filterState.hqsNames = [];
+  filterState.misNames = []; filterState.hqsNames = []; filterState.conciergeNames = [];
   filterState.fastMoveIn = false;
   filterState.noQaOnly = false;
   filterState.unpricedOnly = false;
@@ -449,6 +486,7 @@ function restoreFilters() {
       dateFrom: s.dateFrom || '', dateTo: s.dateTo || '', dateChip: s.dateChip || '',
       misNames: Array.isArray(s.misNames) ? s.misNames : [],
       hqsNames: Array.isArray(s.hqsNames) ? s.hqsNames : [],
+      conciergeNames: Array.isArray(s.conciergeNames) ? s.conciergeNames : [],
       fastMoveIn: !!s.fastMoveIn,
       noQaOnly:   !!s.noQaOnly,
       unpricedOnly: !!s.unpricedOnly,
@@ -472,8 +510,9 @@ function applyUrlParams() {
   if (p.has('status'))     filterState.statusCard = p.get('status');
   if (p.has('dateFrom'))   filterState.dateFrom   = p.get('dateFrom');
   if (p.has('dateTo'))     filterState.dateTo     = p.get('dateTo');
-  if (p.has('mis'))        filterState.misNames   = p.get('mis').split(',').filter(Boolean);
-  if (p.has('hqs'))        filterState.hqsNames   = p.get('hqs').split(',').filter(Boolean);
+  if (p.has('mis'))        filterState.misNames       = p.get('mis').split(',').filter(Boolean);
+  if (p.has('hqs'))        filterState.hqsNames       = p.get('hqs').split(',').filter(Boolean);
+  if (p.has('concierge'))  filterState.conciergeNames = p.get('concierge').split(',').filter(Boolean);
   if (p.has('fast'))       filterState.fastMoveIn = p.get('fast') === '1';
   if (p.has('noQa'))       filterState.noQaOnly   = p.get('noQa') === '1';
   if (p.has('unpriced'))   filterState.unpricedOnly = p.get('unpriced') === '1';
