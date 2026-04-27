@@ -956,13 +956,15 @@ function renderDrawer() {
   `;
 
   // Handoff section
+  const conciergeName = r.concierge ? escapeHtml(r.concierge) : 'concierge';
   const handoffHtml = `
     <div class="dr-section">
-      <div class="dr-h">Handoff</div>
+      <div class="dr-h">Handoff to concierge</div>
       <label class="dr-toggle">
         <input type="checkbox" ${handedOff ? 'checked' : ''} onchange="onToggleHandoff(this.checked)">
-        Handed off to concierge
+        Handed off to ${conciergeName}
       </label>
+      ${!r.concierge ? `<div style="font-size:11px;color:var(--amber);margin-top:4px">⚠️ No concierge assigned to this home</div>` : ''}
       ${handedOff && ctx.handed_off_at ? `<div style="font-size:11px;color:var(--faint);margin-top:4px">on ${formatDateNumeric(ctx.handed_off_at)}${ctx.handed_off_by ? ' by ' + escapeHtml(ctx.handed_off_by) : ''}</div>` : ''}
     </div>
   `;
